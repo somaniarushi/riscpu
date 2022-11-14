@@ -62,9 +62,9 @@ module cpu #(
     // Register file
     // Asynchronous read: read data is available in the same cycle
     // Synchronous write: write takes one cycle
-    wire we;
-    wire [4:0] ra1, ra2, wa;
-    wire [31:0] wd;
+    reg we;
+    reg [4:0] ra1, ra2, wa;
+    reg [31:0] wd;
     wire [31:0] rd1, rd2;
     reg_file rf (
         .clk(clk),
@@ -101,9 +101,119 @@ module cpu #(
         .data_in_ready(uart_tx_data_in_ready)
     );
 
+    /* CSR handling */
     reg [31:0] tohost_csr = 0;
 
-    // TODO: Your code to implement a fully functioning RISC-V core
-    // Add as many modules as you want
-    // Feel free to move the memory modules around
+    /*
+    Defining PCs, instructions, and immediates for three-stage pipeline
+    */
+    reg [31:0] pc_fd;
+    reg [31:0] pc_x;
+    reg [31:0] pc_mw;
+
+    reg [31:0] inst_fd;
+    reg [31:0] inst_x;
+    reg [31:0] inst_mw;
+
+    reg [31:0] imm_fd;
+    reg [31:0] imm_x;
+    reg [31:0] imm_mw;
+
+    reg [31:0] alu_x;
+    reg [31:0] alu_mw;
+
+    reg [31:0] wb_val;
+
+
+    /*
+    Control logic values
+    */
+    wire [1:0] pc_sel;
+    wire inst_sel;
+    wire is_j_or_b;
+
+    wire mw2d_a, mw2d_b;
+
+    control_logic cl (
+      .instfd(inst_fd),
+      .instx(inst_x),
+      .instmw(inst_mw),
+      // TODO: Inputs from branch comparator
+      .pcsel(pc_sel),
+      .inst_sel(inst_sel),
+      .is_j_or_b(is_j_or_b),
+      .wb2d_a(wb2d_a),
+      .wb2d_b(wb2d_b)
+    );
+
+    immediate_generator (
+      .inst(inst_fd),
+      .imm(imm_fd)
+    );
+
+
+    /* Fetch and Decode Section
+      1. Calculate next PC based on PCSel (control logic)
+         given PC + 4, ALU, and PC + imm as options
+      2. Use IMEM to find the instruction stored at addr
+         Simultaneously, find the instruction stored at addr in BIOS
+         Choose between IMEM and BIOS based on PC[30] (InstSel)
+      3. If isJump Control Signal is true, change the instruction to 13. (#TODO: Execute)
+      4. Read in regFile values of ra1 and ra2
+
+      5. From Writeback stage -> handle wa and rd. (#TODO: Writeback)
+      6. Output rs1 and rs2, selecting between each and WB with the control signal MW2D-A and MW2D-B (#TODO: Writeback)
+
+      7. Register the values of PC, rs1, rs2, immediate, and instruction
+      8. Don't register the value of PC if isJump = true (stall)
+    */
+
+    // PC updater
+    reg [31:0] next_pc;
+    fetch_next_pc(
+      .pc(pc_fd),
+      .imm(imm_fd),
+      .alu(alu_x),
+      .pc_sel(pc_sel),
+      .next_pc(next_pc)
+    );
+
+    fetch_instruction (
+      .clk(clk),
+      .pc_fd(pc_fd),
+      .bios_addr(bios_addra),
+      .imem_addr(imem_addrb),
+      .inst(inst_fd),
+      .bios_dout(bios_douta),
+      .imem_dout(imem_doutb),
+      .is_j_or_b(is_j_or_b),
+      .inst_sel(inst_sel)
+    );
+
+    reg [31:0] rs1, rs2;
+
+    read_from_reg (
+      .inst(inst_fd),
+      .wb2d_a(wb2d_a),
+      .wb2d_b(wb2d_b),
+      .rd1(rd1),
+      .rd2(rd2),
+      .we(we),
+      .wb_val(wb_val),
+      .ra1(ra1),
+      .ra2(ra2),
+      .rs1(rs1),
+      .rs2(rs2)
+    );
+
+    // Writeback TODO
+
+    // Clocking block
+    always @(posedge clk) begin
+      pc_x <= pc_fd;
+      imm_x <= imm_fd;
+      inst_x <= inst_fd;
+      pc_fd <= (is_j_or_b) ? pc_fd : next_pc;
+    end
+
 endmodule
