@@ -1,9 +1,0 @@
-Chronologic VCS simulator copyright 1991-2019
-Contains Synopsys proprietary information.
-Compiler version P-2019.06_Full64; Runtime version P-2019.06_Full64;  Nov 13 20:50 2022
-$finish called from file "nextpc_tb.v", line 47.
-$finish at simulation time                30000
-           V C S   S i m u l a t i o n   R e p o r t 
-Time: 30000 ps
-CPU Time:      0.340 seconds;       Data structure size:   0.0Mb
-Sun Nov 13 20:50:23 2022

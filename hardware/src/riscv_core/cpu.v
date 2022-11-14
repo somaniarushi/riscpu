@@ -135,12 +135,11 @@ module cpu #(
     wire mw2d_a, mw2d_b;
 
     control_logic cl (
-      .instfd(inst_fd),
-      .instx(inst_x),
-      .instmw(inst_mw),
+      .inst_fd(inst_fd),
+      .inst_x(inst_x),
+      .inst_mw(inst_mw),
       // TODO: Inputs from branch comparator
-      .pcsel(pc_sel),
-      .inst_sel(inst_sel),
+      .pc_sel(pc_sel),
       .is_j_or_b(is_j_or_b),
       .wb2d_a(wb2d_a),
       .wb2d_b(wb2d_b)
@@ -178,9 +177,14 @@ module cpu #(
       .next_pc(next_pc)
     );
 
+
+    assign bios_ena = 1; // FIXME: ???
+    assign imem_ena = 1;
+
+    assign inst_sel = pc_fd[30]; // Lock in inst_sel to it's corresponding value
+
     fetch_instruction (
-      .clk(clk),
-      .pc_fd(pc_fd),
+      .pc(pc_fd),
       .bios_addr(bios_addra),
       .imem_addr(imem_addrb),
       .inst(inst_fd),
@@ -192,13 +196,13 @@ module cpu #(
 
     reg [31:0] rs1, rs2;
 
+    // TODO: we (write enable) set??
     read_from_reg (
       .inst(inst_fd),
       .wb2d_a(wb2d_a),
       .wb2d_b(wb2d_b),
       .rd1(rd1),
       .rd2(rd2),
-      .we(we),
       .wb_val(wb_val),
       .ra1(ra1),
       .ra2(ra2),
@@ -215,5 +219,10 @@ module cpu #(
       inst_x <= inst_fd;
       pc_fd <= (is_j_or_b) ? pc_fd : next_pc;
     end
+
+    /*
+      Execute Section
+      1.
+    */
 
 endmodule

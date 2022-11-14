@@ -5,7 +5,6 @@ module read_from_reg(
     input [31:0] rd1,
     input [31:0] rd2,
     input [31:0] wb_val,
-    output reg we,
     output reg [4:0] ra1,
     output reg [4:0] ra2,
     output [31:0] rs1,
@@ -14,13 +13,12 @@ module read_from_reg(
 
     // RegFile read (asynchronous)
     always @(*) begin
-      we = 0;
       ra1 = inst[19:15];
       ra2 = inst[24:20];
     end
 
     // MW2D Forwarding
-    wire [31:0] rs1 = (wb2d_a) ? wb_val : rd1;
-    wire [31:0] rs2 = (wb2d_b) ? wb_val : rd2;
+    assign rs1 = (wb2d_a) ? wb_val : rd1;
+    assign rs2 = (wb2d_b) ? wb_val : rd2;
 
 endmodule

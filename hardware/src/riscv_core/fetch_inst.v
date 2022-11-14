@@ -1,5 +1,4 @@
 module fetch_instruction(
-    input clk,
     input [31:0] pc,
     input is_j_or_b,
     input inst_sel,
@@ -16,12 +15,11 @@ module fetch_instruction(
     assign imem_addr = imem;
 
     // IMEM/BIOS Read
-    always @(posedge clk) begin
-      bios <= pc[11:0]; // Set bios_addra
-      imem <= pc[13:0]; // Set imem_addrb
+    always @(*) begin
+      bios = pc[11:0]; // Set bios_addra
+      imem = pc[13:0]; // Set imem_addrb
     end
 
     // Inst Sel + Jump logic
     assign inst = (is_j_or_b) ? 32'h13 : ((inst_sel) ? bios_dout : imem_dout);
-
 endmodule
