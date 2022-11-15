@@ -1,3 +1,4 @@
+// Deprecation Notice: Has since been removed from CPU :(
 module inst_splitter(
     input [31:0] inst,
 

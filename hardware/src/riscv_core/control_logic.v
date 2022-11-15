@@ -3,10 +3,10 @@ module control_logic (
     input [31:0] inst_x,
     input [31:0] inst_mw,
     // TODO: branch comparator input
-    output reg [1:0] pc_sel;
-    output reg is_j_or_b;
-    output reg wb2d_a;
-    output reg wb2d_b;
+    output reg [1:0] pc_sel,
+    output reg is_j_or_b,
+    output reg wb2d_a,
+    output reg wb2d_b
 );
 
     // Setting PCSel
@@ -20,12 +20,14 @@ module control_logic (
     assign x_is_jalr = inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0;
     assign x_branch_taken = 0; // FIXME: DO BRANCHING
 
-    if (x_is_jalr || x_branch_taken) begin
-        pc_sel = 1;
-    end else if (fd_is_jal) begin
-        pc_sel = 0;
-    end else begin
-        pc_sel = 2;
+    always @(*) begin
+        if (x_is_jalr || x_branch_taken) begin
+            pc_sel = 1;
+        end else if (fd_is_jal) begin
+            pc_sel = 0;
+        end else begin
+            pc_sel = 2;
+        end
     end
 
     // Setting isJorB
@@ -36,10 +38,12 @@ module control_logic (
     */
     wire x_is_branch;
     assign x_is_branch = inst_x[6:0] == 7'h63;
-    if (x_is_jalr || x_is_branch) begin
-        is_j_or_b = 1;
-    end else begin
-        is_j_or_b = 0;
+    always @(*) begin
+        if (x_is_jalr || x_is_branch) begin
+            is_j_or_b = 1;
+        end else begin
+            is_j_or_b = 0;
+        end
     end
 
     // Setting wb2d-a
@@ -47,20 +51,24 @@ module control_logic (
     wire rd_instmw, rs1_instfd;
     assign rd_instmw = inst_mw[11:7];
     assign rs1_instfd = inst_fd[19:15];
-    if (rd_instmw == rs1_instfd) begin // a conflict exists, forwarding required
-        wb2d_a = 1;
-    end else begin
-        wb2d_a = 0;
+    always @(*) begin
+        if (rd_instmw == rs1_instfd) begin // a conflict exists, forwarding required
+            wb2d_a = 1;
+        end else begin
+            wb2d_a = 0;
+        end
     end
 
     // Setting wb2d-b
     /* Conflict between rs2 when rd of inst-MW  = rs2 of inst-FD. */
     wire rs2_instfd;
     assign rs2_instfd = inst_fd[24:20];
-    if (rd_instmw == rs2_instfd) begin
-        wb2d_b = 1;
-    end else begin
-        wb2d_b = 0;
+    always @(*) begin
+        if (rd_instmw == rs2_instfd) begin
+            wb2d_b = 1;
+        end else begin
+            wb2d_b = 0;
+        end
     end
 
 endmodule
