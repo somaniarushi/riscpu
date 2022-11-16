@@ -68,7 +68,7 @@ module control_logic_tb();
         repeat (1) @(negedge clk);
         assert(wb2d_a == 1) else $display("rd -> rs1 forwarding did not work");
         assert(wb2d_b == 0) else $display("rd -> rs2 forwarding should not be happening");
-          // TODO: What if instruction is not R-type but it just looks like it is?
+          // What if instruction is not R-type but it just looks like it is?
           // Accidental forwarding
 
         inst_mw = 32'h00110193; // addi x3 x2 1
