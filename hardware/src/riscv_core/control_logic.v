@@ -2,11 +2,17 @@ module control_logic (
     input [31:0] inst_fd,
     input [31:0] inst_x,
     input [31:0] inst_mw,
+    input brlt,
+    input breq,
     // TODO: branch comparator input
     output reg [1:0] pc_sel,
     output reg is_j_or_b,
     output reg wb2d_a,
-    output reg wb2d_b
+    output reg wb2d_b,
+    output reg brun,
+    output reg asel,
+    output reg bsel,
+    output reg alu_sel
 );
 
     // Setting PCSel
@@ -68,6 +74,17 @@ module control_logic (
             wb2d_b = 1;
         end else begin
             wb2d_b = 0;
+        end
+    end
+
+    // Setting brUN
+    /* Branch unsigned = 1 if the inst type is B and func3[3:1] == "11" */
+    wire x_is_unsigned = inst_x[14:12] == 3'b110 && inst_x[14:12] == 3'b111; // BLTU or BGEU
+    always @(*) begin
+        if (x_is_branch && x_is_unsigned) begin
+            brun = 1;
+        end else begin
+            brun = 0;
         end
     end
 

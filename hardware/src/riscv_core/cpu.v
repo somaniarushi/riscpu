@@ -101,55 +101,71 @@ module cpu #(
         .data_in_ready(uart_tx_data_in_ready)
     );
 
-    /* CSR handling */
+    // CSR handling
     reg [31:0] tohost_csr = 0;
 
-    /*
-    Defining PCs, instructions, and immediates for three-stage pipeline
-    */
+    // The PCs for the instructions in the pipeline
     reg [31:0] pc_fd;
     reg [31:0] pc_x;
     reg [31:0] pc_mw;
 
+    // The three instructions in the pipeline
     reg [31:0] inst_fd;
     reg [31:0] inst_x;
     reg [31:0] inst_mw;
 
+    // The immediate value associated with the instruction.
     reg [31:0] imm_fd;
     reg [31:0] imm_x;
     reg [31:0] imm_mw;
 
+    // The ALU output associated with the stage.
     reg [31:0] alu_x;
     reg [31:0] alu_mw;
 
+    // The memory and writeback value associated with the instruction.
+    reg [31:0] mem_val;
     reg [31:0] wb_val;
 
+    // Values inputed into control logic from branch comp
+    reg brlt, breq;
 
     /*
     Control logic values
     */
-    wire [1:0] pc_sel;
-    wire inst_sel;
-    wire is_j_or_b;
 
-    wire mw2d_a, mw2d_b;
+    // Selecting next PC
+    reg [1:0] pc_sel;
+    // Selecting inst from BIOS or IMEM
+    reg inst_sel;
+    // Selection whether to input a nop or not
+    reg is_j_or_b;
+    // Selecting whether to forward from WB to Decode
+    reg mw2d_a, mw2d_b;
+    // Selecting values for branch comparison
+    reg brun;
+    // Selecting values that input to the ALU
+    reg [1:0] asel, bsel;
+    // Selecting operation performed by the ALU
+    reg [31:0] alu_sel;
 
     control_logic cl (
+      // Inputs
       .inst_fd(inst_fd),
       .inst_x(inst_x),
       .inst_mw(inst_mw),
-      // TODO: Inputs from branch comparator
+      .brlt(brlt),
+      .breq(breq),
+      // Outputs
       .pc_sel(pc_sel),
       .is_j_or_b(is_j_or_b),
       .wb2d_a(wb2d_a),
-      .wb2d_b(wb2d_b)
+      .wb2d_b(wb2d_b),
+      .brun(brun),
+      .asel(asel),
+      .bsel(bsel),
+      .alu_sel(alu_sel)
     );
-
-    immediate_generator (
-      .inst(inst_fd),
-      .imm(imm_fd)
-    );
-
 
     /* Fetch and Decode Section
       1. Calculate next PC based on PCSel (control logic)
@@ -170,10 +186,12 @@ module cpu #(
     // PC updater
     reg [31:0] next_pc;
     fetch_next_pc(
+      // Inputs
       .pc(pc_fd),
       .imm(imm_fd),
       .alu(alu_x),
       .pc_sel(pc_sel),
+      // Outputs
       .next_pc(next_pc)
     );
 
@@ -184,26 +202,38 @@ module cpu #(
     assign inst_sel = pc_fd[30]; // Lock in inst_sel to it's corresponding value
 
     fetch_instruction (
+      // Inputs
       .pc(pc_fd),
-      .bios_addr(bios_addra),
-      .imem_addr(imem_addrb),
-      .inst(inst_fd),
       .bios_dout(bios_douta),
       .imem_dout(imem_doutb),
       .is_j_or_b(is_j_or_b),
-      .inst_sel(inst_sel)
+      .inst_sel(inst_sel),
+      // Outputs
+      .bios_addr(bios_addra),
+      .imem_addr(imem_addrb),
+      .inst(inst_fd),
     );
+
+    immediate_generator (
+      // Inputs
+      .inst(inst_fd),
+      // Outputs
+      .imm(imm_fd)
+    );
+
 
     reg [31:0] rs1, rs2;
 
     // TODO: we (write enable) set??
     read_from_reg (
+      // Inputs
       .inst(inst_fd),
       .wb2d_a(wb2d_a),
       .wb2d_b(wb2d_b),
       .rd1(rd1),
       .rd2(rd2),
       .wb_val(wb_val),
+      // Outputs
       .ra1(ra1),
       .ra2(ra2),
       .rs1(rs1),
@@ -215,7 +245,6 @@ module cpu #(
     // Clocking block
     always @(posedge clk) begin
       pc_x <= pc_fd;
-      // imm_x <= imm_fd; // TODO: Probably shouldn't be clocked
       inst_x <= inst_fd;
       pc_fd <= (is_j_or_b) ? pc_fd : next_pc; // Is is j or b -> insert nop
     end
@@ -224,8 +253,52 @@ module cpu #(
 
     /*
       Execute Section
-      1. Given PC_X + RS1 + RS2 + IMM + INST_X
-      2.
+      1. Given PC_X + RS1 + RS2 + IMM_X + INST_X
+      2. Calculate branch prediction — takes BrUN as input and outputs BrLT and BrEq
+      3. Pre-ALU MUX — based on ASel and BSel — choose between different values the input to the ALU.
+      3. ALU — takes rs1 and rs2 as inputs and returns the calculated output based on ALUSel
+      4. Forward ALU val to MEM and circle back to next PC for jalr
     */
+
+    branch_predictor (
+      // Inputs
+      .brun(brun),
+      .rs1(rs1),
+      .rs2(rs2),
+      // Outputs
+      .brlt(brlt),
+      .breq(breq)
+    );
+
+    reg [31:0] rs1_in, rs2_in;
+
+    ex_forwarding(
+      // Inputs
+      .rs1(rs1),
+      .rs2(rs2),
+      .mem(mem_val),
+      .alu(alu_mw),
+      .asel(asel),
+      .bsel(bsel),
+      // Outputs
+      .rs1_in(rs1_in),
+      .rs2_in(rs2_in)
+    );
+
+    alu (
+      // Inputs
+      .rs1(rs1_in),
+      .rs2(rs2_in),
+      .alu_sel(alu_sel),
+      // Outputs
+      .out(alu_x)
+    );
+
+    always @(posedge clk) begin
+      pc_mw <= pc_x;
+      inst_mw <= inst_x;
+      alu_mw <= alu_x;
+      imm_mw <= imm_x;
+    end
 
 endmodule
