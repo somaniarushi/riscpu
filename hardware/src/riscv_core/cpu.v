@@ -215,14 +215,17 @@ module cpu #(
     // Clocking block
     always @(posedge clk) begin
       pc_x <= pc_fd;
-      imm_x <= imm_fd;
+      // imm_x <= imm_fd; // TODO: Probably shouldn't be clocked
       inst_x <= inst_fd;
-      pc_fd <= (is_j_or_b) ? pc_fd : next_pc;
+      pc_fd <= (is_j_or_b) ? pc_fd : next_pc; // Is is j or b -> insert nop
     end
+
+    assign imm_x = imm_fd;
 
     /*
       Execute Section
-      1.
+      1. Given PC_X + RS1 + RS2 + IMM + INST_X
+      2.
     */
 
 endmodule
