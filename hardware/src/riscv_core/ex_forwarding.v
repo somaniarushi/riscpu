@@ -9,4 +9,26 @@ module ex_forwarding (
     output reg [31:0] rs1_in,
     output reg [31:0] rs2_in
 );
+
+    always @(*) begin
+        if(asel == 0) begin
+            rs1_in = rs1;
+        end else if(asel == 1) begin
+            rs1_in = pc;
+        end else if(asel == 2) begin
+            rs1_in = wb_val;
+        end else begin
+            rs1_in = rs1; // Should not reach
+        end
+
+        if (bsel == 0) begin
+            rs2_in = rs2;
+        end else if (bsel == 1) begin
+            rs2_in = imm;
+        end else if (bsel == 2) begin
+            rs2_in = wb_val;
+        end else begin
+            rs2_in = rs2; // Should not reach
+        end
+    end
 endmodule
