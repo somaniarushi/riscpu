@@ -8,6 +8,9 @@ module cpu #(
     input serial_in,
     output serial_out
 );
+    // FIXME: Add ZERO things out on rst
+
+
     // BIOS Memory
     // Synchronous read: read takes one cycle
     // Synchronous write: write takes one cycle
@@ -173,11 +176,11 @@ module cpu #(
       2. Use IMEM to find the instruction stored at addr
          Simultaneously, find the instruction stored at addr in BIOS
          Choose between IMEM and BIOS based on PC[30] (InstSel)
-      3. If isJump Control Signal is true, change the instruction to 13. (#TODO: Execute)
+      3. If isJump Control Signal is true, change the instruction to 13.
       4. Read in regFile values of ra1 and ra2
 
-      5. From Writeback stage -> handle wa and rd. (#TODO: Writeback)
-      6. Output rs1 and rs2, selecting between each and WB with the control signal MW2D-A and MW2D-B (#TODO: Writeback)
+      5. From Writeback stage -> handle wa and rd.
+      6. Output rs1 and rs2, selecting between each and WB with the control signal MW2D-A and MW2D-B
 
       7. Register the values of PC, rs1, rs2, immediate, and instruction
       8. Don't register the value of PC if isJump = true (stall)
@@ -240,7 +243,7 @@ module cpu #(
       .rs2(rs2)
     );
 
-    // Writeback TODO
+    // TODO: Writeback TODO
 
     // Clocking block
     always @(posedge clk) begin

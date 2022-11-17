@@ -88,4 +88,77 @@ module control_logic (
         end
     end
 
+    // Setting ASEL
+    /*
+        ASel = 0 when RS1 is used.
+        ASel = 1 when PC is used. Instruction is AUIPC, or jump or branch
+        ASel = 2 when WB forwarding is used. Conflict between rs1 and rd.
+    */
+    wire rs1_instx = inst_x[19:15];
+    if (rd_instmw == rs1_instx) begin
+        asel = 2;
+    end else if (inst_x[6:0] == 7'h17 || inst_x[6:0] == 7'h6F || inst_x[6:0] == 7'h63) begin
+        asel = 1;
+    end else begin
+        asel = 0;
+    end
+
+    // Setting BSEL
+    /*
+        BSel = 0 when RS1 is used.
+        BSel = 1 when IMM is used. If the instruction is not an R-type, select IMM.
+        BSel = 2 when WB forwarding is used. Conflict between rs2 and rd.
+    */
+    wire rs2_instx = inst_x[24:20];
+    if (rd_instmw == rs1_instx) begin
+        bsel = 2;
+    end elif (inst_x[6:0] != 7'h33) begin
+        bsel = 1;
+    end else begin
+        bsel = 0;
+    end
+
+
+    wire x_opc = inst_x[6:0];
+    wire x_func3 = inst_x[14:12];
+    wire x_func7 = inst_x[31:25];
+    // Setting ALUSel
+    /*
+        ADD = 0, SUB = 1, SLL = 2, SLT = 3
+        SLTU = 4, XOR = 5, SRL = 6, SRA = 7, OR = 8,
+        AND = 9
+    */
+    // For R-Type
+    if (x_opc == 7'h33) begin
+        case (x_func3)
+            3'b000: alu_sel = (x_func7 == 7'b0) ? 0 : 1;
+            3'b001: alu_sel = 2;
+            3'b010: alu_sel = 3;
+            3'b011: alu_sel = 4;
+            3'b100: alu_sel = 5;
+            3'b101: alu_sel = (x_func3 == 7'b0) ? 6 : 7;
+            3'b110: alu_sel = 8;
+            3'b111: alu_sel = 9;
+            default: alu_sel = 0;
+        endcase
+    end
+    // For I-Type instructions
+    else if (x_opc == 7'h03 || x_opc == 7'h13 || x_opc == 7'h67 || x_opc == 7'h73) begin
+        case (x_func3)
+            3'b000: alu_sel = 0;
+            3'b001: alu_sel = 2;
+            3'b010: alu_sel = 3;
+            3'b011: alu_sel = 4;
+            3'b100: alu_sel = 5;
+            3'b101: alu_sel = (x_func3 == 7'b0) ? 6 : 7;
+            3'b110: alu_sel = 8;
+            3'b111: alu_sel = 9;
+            default: alu_sel = 0;
+        endcase
+    end
+    // For every other instruction -> default to add
+    else begin
+        alu_sel = 0;
+    end
+
 endmodule
