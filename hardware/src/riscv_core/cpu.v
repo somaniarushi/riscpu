@@ -214,7 +214,7 @@ module cpu #(
       // Outputs
       .bios_addr(bios_addra),
       .imem_addr(imem_addrb),
-      .inst(inst_fd),
+      .inst(inst_fd)
     );
 
     immediate_generator (
