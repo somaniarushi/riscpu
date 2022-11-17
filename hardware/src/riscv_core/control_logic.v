@@ -122,6 +122,7 @@ module control_logic (
     wire x_opc = inst_x[6:0];
     wire x_func3 = inst_x[14:12];
     wire x_func7 = inst_x[31:25];
+
     // Setting ALUSel
     /*
         ADD = 0, SUB = 1, SLL = 2, SLT = 3

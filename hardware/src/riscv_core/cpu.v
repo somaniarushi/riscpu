@@ -263,7 +263,7 @@ module cpu #(
       4. Forward ALU val to MEM and circle back to next PC for jalr
     */
 
-    branch_predictor (
+    branch_comp (
       // Inputs
       .brun(brun),
       .rs1(rs1),
@@ -279,10 +279,11 @@ module cpu #(
       // Inputs
       .rs1(rs1),
       .rs2(rs2),
-      .mem(mem_val),
-      .alu(alu_mw),
+      .wb_val(wb_val),
       .asel(asel),
       .bsel(bsel),
+      .pc(pc_x),
+      .imm(imm_x),
       // Outputs
       .rs1_in(rs1_in),
       .rs2_in(rs2_in)

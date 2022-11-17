@@ -1,4 +1,4 @@
-module branch_predictor (
+module branch_comp (
     input brun,
     input [31:0] rs1,
     input [31:0] rs2,
