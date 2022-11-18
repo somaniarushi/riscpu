@@ -11,17 +11,37 @@ module control_logic_tb();
     always #(CPU_CLOCK_PERIOD/2) clk = ~clk;
 
     reg [31:0] inst_fd, inst_x, inst_mw;
+    // Selecting next PC
     reg [1:0] pc_sel;
-    reg is_j_or_b, wb2d_a, wb2d_b;
+    // Selecting inst from BIOS or IMEM
+    reg inst_sel;
+    // Selection whether to input a nop or not
+    reg is_j_or_b;
+    // Selecting whether to forward from WB to Decode
+    reg mw2d_a, mw2d_b;
+    // Selecting values for branch comparison
+    reg brun;
+    // Selecting values that input to the ALU
+    reg [1:0] asel, bsel;
+    // Selecting operation performed by the ALU
+    reg [31:0] alu_sel;
 
     control_logic cl (
+      // Inputs
       .inst_fd(inst_fd),
       .inst_x(inst_x),
       .inst_mw(inst_mw),
+      .brlt(brlt),
+      .breq(breq),
+      // Outputs
       .pc_sel(pc_sel),
       .is_j_or_b(is_j_or_b),
       .wb2d_a(wb2d_a),
-      .wb2d_b(wb2d_b)
+      .wb2d_b(wb2d_b),
+      .brun(brun),
+      .asel(asel),
+      .bsel(bsel),
+      .alu_sel(alu_sel)
     );
 
     initial begin
@@ -82,6 +102,101 @@ module control_logic_tb();
         repeat (1) @(negedge clk);
         assert(wb2d_a == 1) else $display("rd -> rs1 forwarding did not work");
         assert(wb2d_b == 1) else $display("rd -> rs2 forwarding does not work");
+
+        /**
+        Test brUN.
+        */
+        inst_x = 32'h0041E263; // bltu x3 x4 4
+        repeat (1) @(negedge clk);
+        assert(brun == 1) else $display("inst wasn't recog'd as unsigned %b", brun);
+
+        inst_x = 32'h0041F263; // bgeu x3 x4 4
+        repeat (1) @(negedge clk);
+        assert(brun == 1) else $display("inst wasn't recog'd as unsigned %b", brun);
+
+        inst_x = 32'h00419A63; // bne x3 x4 20
+        repeat (1) @(negedge clk);
+        assert(brun == 0) else $display("inst was recog'd as signed %b", brun);
+
+        /**
+        Test A-Sel
+        */
+        // No forwarding, choose rs1
+        inst_mw = 32'h00000013; // addi x0 x0 0
+        inst_x = 32'h09928213; // addi x4 x5 153
+        repeat (1) @(negedge clk);
+        assert (asel == 'b00) else $display("asel wrong | output %d", asel);
+
+        // No forwarding, choose rs1
+        inst_x = 	32'h010301E7; // jalr x3 x6 16
+        repeat (1) @(negedge clk);
+        assert (asel == 'b00) else $display("asel wrong | output %d", asel);
+
+        // No forwarding, choose PC
+        inst_x = 32'h03266197; // auipc x3 12902
+        repeat (1) @(negedge clk);
+        assert (asel == 'b01) else $display("PC overwrite broken | output %d", asel);
+
+        // No forwarding, choose PC
+        inst_x = 32'h0A740063; // beq x8 x7 160
+        repeat (1) @(negedge clk);
+        assert (asel == 'b01) else $display("PC overwrite broken | output %d", asel);
+
+        // No forwarding, choose PC
+        inst_x = 32'h010001EF; // jal x3 16
+        repeat (1) @(negedge clk);
+        assert (asel == 'b01) else $display("PC overwrite broken | output %d", asel);
+
+        // ALU to ALU forwarding, choose rs1
+        inst_mw = 32'h4DF00193; // addi x3 x0 1247
+        inst_x = 32'h00518293; // addi x5 x3 5
+        repeat (1) @(negedge clk);
+        assert (asel == 'b10) else $display("ALU forwarding broken | output %d", asel);
+
+        // Mem to ALU forwarding, choose rs1
+        inst_mw = 32'h00422183; // lw x3 4(x4)
+        inst_x = 32'h00518293;	// addi x5 x3 5
+        repeat (1) @(negedge clk);
+        assert (asel == 'b10) else $display("Mem forwarding broken | output %d", asel);
+
+        // Forwarding, choose PC
+        inst_mw = 32'h4DF00193; // addi x3 x0 1247
+        inst_x =  32'h010001EF; // jal x3 16
+        assert(asel[1] == 1) else $display("forwarding broken | output %d", asel);
+
+        /**
+        Test BSel
+        */
+        inst_mw = 32'h00000033; // add x3 x5 x2
+        inst_x = 32'h009400B3; // add x1 x8 x9
+        repeat (1) @(negedge clk);
+        assert(bsel == 'b00) else $display("bsel wrong | output %d", bsel);
+
+        inst_x = 32'h05920193; // addi x3 x4 89
+        repeat (1) @(negedge clk);
+        assert (bsel == 'b01) else $display("imm selection broken | output %d", bsel);
+
+        inst_x = 32'h00720863; // beq x4 x7 16
+        repeat (1) @(negedge clk);
+        assert (bsel == 'b01) else $display("imm selection broken | output %d", bsel);
+
+        inst_x = 32'h0B740267; // jalr x4 x8 183
+        repeat (1) @(negedge clk);
+        assert (bsel == 'b01) else $display("imm selection broken | output %d", bsel);
+
+        inst_x = 32'h0007B437; // lui x8 123
+        repeat (1) @(negedge clk);
+        assert (bsel == 'b01) else $display("imm selection broken | output %d", bsel);
+
+        inst_x = 32'h00A62423; // sw x10 8(x12)
+        repeat (1) @(negedge clk);
+        assert (bsel == 'b01) else $display("imm selection broken | output %d", bsel);
+
+        inst_mw = 32'h5A300293; // addi x5 x0 1443
+        inst_x = 32'h00518133; // add x2 x3 x5
+        repeat (1) @(negedge clk);
+        assert(bsel == 'b10) else $display("forwarding selection works | output %d", bsel);
+
 
         $finish();
 

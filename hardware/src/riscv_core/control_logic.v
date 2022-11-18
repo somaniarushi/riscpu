@@ -10,8 +10,8 @@ module control_logic (
     output reg wb2d_a,
     output reg wb2d_b,
     output reg brun,
-    output reg asel,
-    output reg bsel,
+    output reg [1:0] asel,
+    output reg [1:0] bsel,
     output reg alu_sel
 );
 
@@ -54,7 +54,7 @@ module control_logic (
 
     // Setting wb2d-a
     /* Conflict between rs1 when rd of inst-MW = rs1 of inst-FD. */
-    wire rd_instmw, rs1_instfd;
+    wire [4:0] rd_instmw, rs1_instfd;
     assign rd_instmw = inst_mw[11:7];
     assign rs1_instfd = inst_fd[19:15];
     always @(*) begin
@@ -67,7 +67,7 @@ module control_logic (
 
     // Setting wb2d-b
     /* Conflict between rs2 when rd of inst-MW  = rs2 of inst-FD. */
-    wire rs2_instfd;
+    wire [4:0] rs2_instfd;
     assign rs2_instfd = inst_fd[24:20];
     always @(*) begin
         if (rd_instmw == rs2_instfd) begin
@@ -79,7 +79,7 @@ module control_logic (
 
     // Setting brUN
     /* Branch unsigned = 1 if the inst type is B and func3[3:1] == "11" */
-    wire x_is_unsigned = inst_x[14:12] == 3'b110 && inst_x[14:12] == 3'b111; // BLTU or BGEU
+    wire x_is_unsigned = inst_x[14:12] == 3'b110 || inst_x[14:12] == 3'b111; // BLTU or BGEU
     always @(*) begin
         if (x_is_branch && x_is_unsigned) begin
             brun = 1;
@@ -90,42 +90,57 @@ module control_logic (
 
     // Setting ASEL
     /*
-        ASel = 0 when RS1 is used.
-        ASel = 1 when PC is used. Instruction is AUIPC, or jump or branch
-        ASel = 2 when WB forwarding is used. Conflict between rs1 and rd.
+        ASel[0] = 0 when RS1 is used. 1 when PC is used. Instruction is AUIPC, or jump or branch
+        ASel[1] = 1 when WB forwarding is used. Conflict between rs1 and rd.
     */
-    wire rs1_instx = inst_x[19:15];
+    wire [4:0] rs1_instx;
+    assign rs1_instx = inst_x[19:15];
+    wire rs1_exists; // rs1 exists in types R, I, S, and B
+    wire [6:0] x_opc = inst_x[6:0];
+    assign rs1_exists = x_opc == 7'h33 || x_opc == 7'h23 || x_opc == 7'h63 || x_opc == 7'h03 ||x_opc == 7'h13 || x_opc == 7'h67 || x_opc == 7'h73;
+
     always @(*) begin
-        if (rd_instmw == rs1_instx) begin
-            asel = 2;
-        end else if (inst_x[6:0] == 7'h17 || inst_x[6:0] == 7'h6F || inst_x[6:0] == 7'h63) begin
-            asel = 1;
+        // Forwarding Conflict
+        if ((rd_instmw == rs1_instx) && rs1_exists) begin
+            asel[1] = 1;
         end else begin
-            asel = 0;
+            asel[1] = 0;
+        end
+
+        // PC or rs1
+        if (inst_x[6:0] == 7'h17 || inst_x[6:0] == 7'h6F || inst_x[6:0] == 7'h63) begin
+            asel[0] = 1;
+        end else begin
+            asel[0] = 0;
         end
     end
 
     // Setting BSEL
     /*
-        BSel = 0 when RS1 is used.
-        BSel = 1 when IMM is used. If the instruction is not an R-type, select IMM.
-        BSel = 2 when WB forwarding is used. Conflict between rs2 and rd.
+        BSel[0] = 0 when RS1 is used. 1 when IMM is used. If the instruction is not an R-type, select IMM.
+        BSel[1] = 1 when WB forwarding is used. Conflict] between rs2 and rd.
     */
-    wire rs2_instx = inst_x[24:20];
+    wire [4:0] rs2_instx = inst_x[24:20];
+    wire rs2_exists; // Needs to be R, S, or B type
+    assign rs2_exists = x_opc == 7'h33 || x_opc == 7'h23 || x_opc == 7'h63;
     always @(*) begin
-        if (rd_instmw == rs1_instx) begin
-            bsel = 2;
-        end else if (inst_x[6:0] != 7'h33) begin
-            bsel = 1;
+        // Forwarding
+        if ((rd_instmw == rs2_instx) && rs2_exists) begin
+            bsel[1] = 1;
         end else begin
-            bsel = 0;
+            bsel[1] = 0;
+        end
+
+        // IMM vs PC
+        if (inst_x[6:0] != 7'h33) begin
+            bsel[0] = 1;
+        end else begin
+            bsel[0] = 0;
         end
     end
 
-
-    wire x_opc = inst_x[6:0];
-    wire x_func3 = inst_x[14:12];
-    wire x_func7 = inst_x[31:25];
+    wire [2:0] x_func3 = inst_x[14:12];
+    wire [6:0] x_func7 = inst_x[31:25];
 
     // Setting ALUSel
     /*

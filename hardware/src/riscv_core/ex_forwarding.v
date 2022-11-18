@@ -7,28 +7,17 @@ module ex_forwarding (
     input [1:0] asel,
     input [1:0] bsel,
     output reg [31:0] rs1_in,
-    output reg [31:0] rs2_in
+    output reg [31:0] rs2_in,
+    output reg [31:0] rs1_br,
+    output reg [31:0] rs2_br
 );
+    always @(*) begin
+        rs1_br = asel[1] ? wb_val : rs1; // if asel first bit is high, forward wb_val, else keep rs1
+        rs2_br = bsel[1] ? wb_val : rs2; // if bsel first bit is high, forward wb_val, else keep rs2
+    end
 
     always @(*) begin
-        if(asel == 0) begin
-            rs1_in = rs1;
-        end else if(asel == 1) begin
-            rs1_in = pc;
-        end else if(asel == 2) begin
-            rs1_in = wb_val;
-        end else begin
-            rs1_in = rs1; // Should not reach
-        end
-
-        if (bsel == 0) begin
-            rs2_in = rs2;
-        end else if (bsel == 1) begin
-            rs2_in = imm;
-        end else if (bsel == 2) begin
-            rs2_in = wb_val;
-        end else begin
-            rs2_in = rs2; // Should not reach
-        end
+        rs1_in = asel[0] ? pc : rs1_br; // if asel second bit is high, forward pc, else keep rs1_br
+        rs2_in = bsel[0] ? imm : rs2_br; // if bsel second bit is high, forward imm, else keep rs2_br
     end
 endmodule
