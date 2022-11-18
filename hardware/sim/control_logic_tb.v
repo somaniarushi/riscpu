@@ -159,10 +159,17 @@ module control_logic_tb();
         repeat (1) @(negedge clk);
         assert (asel == 'b10) else $display("Mem forwarding broken | output %d", asel);
 
-        // Forwarding, choose PC
+        // No forwarding, choose PC
         inst_mw = 32'h4DF00193; // addi x3 x0 1247
         inst_x =  32'h010001EF; // jal x3 16
-        assert(asel[1] == 1) else $display("forwarding broken | output %d", asel);
+        repeat (1) @(negedge clk);
+        assert(asel == 'b01) else $display("forwarding broken | output %d", asel);
+
+        // Mem-Mem Conflict, accounts for PrevMemrs1
+        inst_mw = 32'h00012083; // lw x1, 0(x2)
+        inst_x =  32'h0030A023; // sw x3, 0(x1)
+        repeat (1) @(negedge clk);
+        assert(asel == 'b10) else $display("mem-mem forwarding broken | output %d", asel);
 
         /**
         Test BSel
@@ -196,6 +203,12 @@ module control_logic_tb();
         inst_x = 32'h00518133; // add x2 x3 x5
         repeat (1) @(negedge clk);
         assert(bsel == 'b10) else $display("forwarding selection works | output %d", bsel);
+
+        // detect rs2 forwarding for MEM-MEM instructions, proves prevmemrs1 is not necessary
+        inst_mw = 32'h00012083; // lw x1, 0(x2)
+        inst_x =  32'h00112223; // sw x1, 4(x2)
+        repeat (1) @(negedge clk);
+        assert(bsel[1] == 'b1) else  $display("mem-mem forwarding | output %d", bsel);
 
 
         $finish();

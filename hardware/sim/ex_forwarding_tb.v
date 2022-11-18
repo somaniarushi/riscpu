@@ -70,6 +70,14 @@ module ex_forwarding_tb();
         assert(rs1_in == 44) else $display("latch protection incorrect, output %b", rs1_in);
         assert(rs2_in == 1) else $display("latch protection incorrect, output %b", rs2_in);
 
+        bsel = 'b11;
+        repeat (1) @(negedge clk);
+        assert(rs2_br == 111) else $display("rs2 branch is forwarded val, output %b", rs2_br);
+
+        asel = 'b11;
+        repeat (1) @(negedge clk);
+        assert(rs1_br == 111) else $display("rs2 branch is forwarded val, output %b", rs1_br);
+
         $finish();
     end
 endmodule

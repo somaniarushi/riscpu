@@ -4,7 +4,6 @@ module control_logic (
     input [31:0] inst_mw,
     input brlt,
     input breq,
-    // TODO: branch comparator input
     output reg [1:0] pc_sel,
     output reg is_j_or_b,
     output reg wb2d_a,
@@ -12,7 +11,10 @@ module control_logic (
     output reg brun,
     output reg [1:0] asel,
     output reg [1:0] bsel,
-    output reg alu_sel
+    output reg [31:0] alu_sel,
+    output reg bios_dmem,
+    output reg mem_rw,
+    output reg wb_sel
 );
 
     // Setting PCSel

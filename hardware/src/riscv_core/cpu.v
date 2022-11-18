@@ -151,6 +151,12 @@ module cpu #(
     reg [1:0] asel, bsel;
     // Selecting operation performed by the ALU
     reg [31:0] alu_sel;
+    // Choose between bios and dmem.
+    reg bios_dmem;
+    // Selects whether the memory unit reads or writes.
+    reg mem_rw;
+    // Selects writeback values
+    reg wb_sel;
 
     control_logic cl (
       // Inputs
@@ -167,7 +173,10 @@ module cpu #(
       .brun(brun),
       .asel(asel),
       .bsel(bsel),
-      .alu_sel(alu_sel)
+      .alu_sel(alu_sel),
+      .bios_dmem(bios_dmem),
+      .mem_rw(mem_rw),
+      .wb_sel(wb_sel)
     );
 
     /* Fetch and Decode Section
@@ -204,6 +213,8 @@ module cpu #(
 
     assign inst_sel = pc_fd[30]; // Lock in inst_sel to it's corresponding value
 
+    reg [31:0] next_inst;
+
     fetch_instruction (
       // Inputs
       .pc(pc_fd),
@@ -214,7 +225,7 @@ module cpu #(
       // Outputs
       .bios_addr(bios_addra),
       .imem_addr(imem_addrb),
-      .inst(inst_fd)
+      .inst(next_inst)
     );
 
     immediate_generator (
@@ -225,7 +236,7 @@ module cpu #(
     );
 
 
-    reg [31:0] rs1, rs2;
+    reg [31:0] rs1_fd, rs2_fd;
 
     // TODO: we (write enable) set??
     read_from_reg (
@@ -239,20 +250,37 @@ module cpu #(
       // Outputs
       .ra1(ra1),
       .ra2(ra2),
-      .rs1(rs1),
-      .rs2(rs2)
+      .rs1(rs1_fd),
+      .rs2(rs2_fd)
     );
 
     // TODO: Writeback TODO
 
+    // FIXME: Jal forwarding???
+
+
+    reg [31:0] rs1, rs2;
     // Clocking block
     always @(posedge clk) begin
-      pc_x <= pc_fd;
-      inst_x <= inst_fd;
-      pc_fd <= (is_j_or_b) ? pc_fd : next_pc; // Is is j or b -> insert nop
+      if (rst) begin
+        // TODO: Make sure these are correct;
+        pc_fd <= RESET_PC;
+        inst_fd <= 0;
+        pc_x <= 0;
+        imm_x <= 0;
+        inst_x <= 0;
+        rs1 <= 0;
+        rs2 <= 0;
+      end else begin
+        pc_fd <= (is_j_or_b) ? pc_fd : next_pc; // Is is j or b -> insert nop
+        pc_x <= pc_fd;
+        imm_x <= imm_fd;
+        inst_fd <= next_inst;
+        inst_x <= inst_fd;
+        rs1 <= rs1_fd;
+        rs2 <= rs2_fd;
+      end
     end
-
-    assign imm_x = imm_fd;
 
     /*
       Execute Section
@@ -263,16 +291,7 @@ module cpu #(
       4. Forward ALU val to MEM and circle back to next PC for jalr
     */
 
-    branch_comp (
-      // Inputs
-      .brun(brun),
-      .rs1(rs1),
-      .rs2(rs2),
-      // Outputs
-      .brlt(brlt),
-      .breq(breq)
-    );
-
+    reg [31:0] rs1_br, rs2_br;
     reg [31:0] rs1_in, rs2_in;
 
     ex_forwarding(
@@ -286,8 +305,21 @@ module cpu #(
       .imm(imm_x),
       // Outputs
       .rs1_in(rs1_in),
-      .rs2_in(rs2_in)
+      .rs2_in(rs2_in),
+      .rs1_br(rs1_br),
+      .rs2_br(rs2_br)
     );
+
+    branch_comp (
+      // Inputs
+      .brun(brun),
+      .rs1(rs1_br),
+      .rs2(rs2_br),
+      // Outputs
+      .brlt(brlt),
+      .breq(breq)
+    );
+
 
     alu (
       // Inputs
@@ -304,5 +336,60 @@ module cpu #(
       alu_mw <= alu_x;
       imm_mw <= imm_x;
     end
+
+
+    /*
+      Memory and Writeback Section
+      1. Memory Prep Operations:
+        - To calculate addr, choose between alu_x and imm_x + wb basd on prevmrs1
+        - To calculate data, choose between wb and rs2 basd on PrevMem
+      2. Memory operations
+        - Write to IMEM if relevant
+        - Read from BIOS and DMEM
+        - Load extend DMEM
+        - Choose between BIOS and DMEM as relevant
+      3. Writeback
+        - Choose between PC + 4, ALU_MW and Mem based on WBSEL
+        - Writeback in DECODE stage the value based on RegWEn
+    */
+
+    // TODO: DMEM is also FIFO -> handle
+
+    reg [31:0] addr_d = alu_x;
+    reg [31:0] data_d = rs2_br;
+
+    reg [31:0] mem_bios_dout;
+    reg [31:0] mem_dmem_dout;
+    rw_mem(
+      // Inputs
+      .addr_d(addr_d),
+      .data_d(data_d),
+      .mem_rw(mem_rw),
+      .imem_w(pc_x[30]),
+      // TODO: Add interaction with IMEM and DMEM
+      // Outputs
+      .mem_bios_dout(mem_bios_dout),
+      .mem_dmem_dout(mem_dmem_dout),
+      .bios_addrb(bios_addrb),
+      .
+    );
+
+    reg [31:0] dmem_lex;
+    load_extender(
+      .in(mem_dmem_dout),
+      .out(dmem_lex)
+    );
+
+    wb_selector(
+      // Inputs
+      .mem_bios_dout(mem_bios_dout),
+      .dmem_lex(dmem_lex),
+      .pc(pc_mw),
+      .alu(alu_mw),
+      .wb_sel(wb_sel),
+      .bios_dmem(bios_dmem),
+      // Outputs
+      .wb(wb_val)
+    );
 
 endmodule
