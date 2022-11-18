@@ -48,7 +48,7 @@ module immediate_generator (
         end
     end
 
-    assign imm = imm_reg;
+    assign imm = $signed(imm_reg);
 
 endmodule
 
