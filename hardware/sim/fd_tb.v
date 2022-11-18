@@ -11,6 +11,33 @@ module fd_tb();
 
     reg rst;
 
+    wire [31:0] imem_dina, imem_doutb;
+    wire [13:0] imem_addra, imem_addrb;
+    wire [3:0] imem_wea;
+    wire imem_ena;
+    imem imem (
+      .clk(clk),
+      .ena(imem_ena),
+      .wea(imem_wea),
+      .addra(imem_addra),
+      .dina(imem_dina),
+      .addrb(imem_addrb),
+      .doutb(imem_doutb)
+    );
+
+    reg we;
+    reg [4:0] ra1, ra2, wa;
+    reg [31:0] wd;
+    wire [31:0] rd1, rd2;
+    reg_file rf (
+        .clk(clk),
+        .we(we),
+        .ra1(ra1), .ra2(ra2), .wa(wa),
+        .wd(wd),
+        .rd1(rd1), .rd2(rd2)
+    );
+
+
     inst_fd (
         .clk(clk),
         .rst(rst)

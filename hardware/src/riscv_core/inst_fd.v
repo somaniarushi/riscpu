@@ -1,45 +1,22 @@
 module inst_fd(
     input clk,
-    input rst
+    input rst,
+    input [31:0] pc_in,
+    output reg [31:0] pc_fd,
+    output reg [31:0] pc_x,
+    output reg [31:0] imm_x,
+    output reg [31:0] imm_fd,
+    output reg [31:0] inst_fd,
+    output reg [31:0] inst_x,
+    output reg [31:0] rs1_fd,
+    output reg [31:0] rs1,
+    output reg [31:0] rs2_fd,
+    output reg [31:0] rs2
 );
-    wire [31:0] imem_dina, imem_doutb;
-    wire [13:0] imem_addra, imem_addrb;
-    wire [3:0] imem_wea;
-    wire imem_ena;
-    imem imem (
-      .clk(clk),
-      .ena(imem_ena),
-      .wea(imem_wea),
-      .addra(imem_addra),
-      .dina(imem_dina),
-      .addrb(imem_addrb),
-      .doutb(imem_doutb)
-    );
-
-    // The PCs for the instructions in the pipeline
-    reg [31:0] pc_fd;
-    reg [31:0] pc_x;
     reg [31:0] pc_mw;
-
-    // The three instructions in the pipeline
-    reg [31:0] inst_fd;
-    reg [31:0] inst_x;
     reg [31:0] inst_mw;
-
-    // The immediate value associated with the instruction.
-    reg [31:0] imm_fd;
-    reg [31:0] imm_x;
     reg [31:0] imm_mw;
-
-    // The ALU output associated with the stage.
-    reg [31:0] alu_x;
-    reg [31:0] alu_mw;
-
-    // The memory and writeback value associated with the instruction.
-    reg [31:0] mem_val;
     reg [31:0] wb_val;
-
-    // Values inputed into control logic from branch comp
     reg brlt, breq;
 
 
@@ -56,7 +33,7 @@ module inst_fd(
     // Selecting values that input to the ALU
     reg [1:0] asel, bsel;
     // Selecting operation performed by the ALU
-    reg [31:0] alu_sel;
+    reg [3:0] alu_sel;
 
     control_logic cl (
       // Inputs
@@ -74,21 +51,6 @@ module inst_fd(
       .asel(asel),
       .bsel(bsel),
       .alu_sel(alu_sel)
-    );
-
-    // Register file
-    // Asynchronous read: read data is available in the same cycle
-    // Synchronous write: write takes one cycle
-    reg we;
-    reg [4:0] ra1, ra2, wa;
-    reg [31:0] wd;
-    wire [31:0] rd1, rd2;
-    reg_file rf (
-        .clk(clk),
-        .we(we),
-        .ra1(ra1), .ra2(ra2), .wa(wa),
-        .wd(wd),
-        .rd1(rd1), .rd2(rd2)
     );
 
     // PC updater
