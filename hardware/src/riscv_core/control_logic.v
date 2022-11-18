@@ -11,7 +11,7 @@ module control_logic (
     output reg brun,
     output reg [1:0] asel,
     output reg [1:0] bsel,
-    output reg [31:0] alu_sel,
+    output reg [3:0] alu_sel,
     output reg bios_dmem,
     output reg mem_rw,
     output reg wb_sel

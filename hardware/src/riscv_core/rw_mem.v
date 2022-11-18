@@ -7,8 +7,7 @@ module rw_mem(
     output reg [31:0] mem_bios_dout,
     output reg [31:0] mem_dmem_dout,
     output reg [11:0] bios_addrb,
-    output reg [13:0] dmem_addr,
-    output reg [31:0]
+    output reg [13:0] dmem_addr
 );
 
 endmodule

@@ -24,7 +24,7 @@ module control_logic_tb();
     // Selecting values that input to the ALU
     reg [1:0] asel, bsel;
     // Selecting operation performed by the ALU
-    reg [31:0] alu_sel;
+    reg [3:0] alu_sel;
 
     control_logic cl (
       // Inputs

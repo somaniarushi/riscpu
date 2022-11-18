@@ -108,6 +108,7 @@ module cpu #(
     reg [31:0] tohost_csr = 0;
 
     // The PCs for the instructions in the pipeline
+    reg [31:0] pc_in;
     reg [31:0] pc_fd;
     reg [31:0] pc_x;
     reg [31:0] pc_mw;
@@ -150,7 +151,7 @@ module cpu #(
     // Selecting values that input to the ALU
     reg [1:0] asel, bsel;
     // Selecting operation performed by the ALU
-    reg [31:0] alu_sel;
+    reg [3:0] alu_sel;
     // Choose between bios and dmem.
     reg bios_dmem;
     // Selects whether the memory unit reads or writes.
@@ -199,7 +200,7 @@ module cpu #(
     reg [31:0] next_pc;
     fetch_next_pc(
       // Inputs
-      .pc(pc_fd),
+      .pc(pc_in),
       .imm(imm_fd),
       .alu(alu_x),
       .pc_sel(pc_sel),
@@ -264,7 +265,8 @@ module cpu #(
     always @(posedge clk) begin
       if (rst) begin
         // TODO: Make sure these are correct;
-        pc_fd <= RESET_PC;
+        pc_in <= RESET_PC;
+        pc_fd <= 0;
         inst_fd <= 0;
         pc_x <= 0;
         imm_x <= 0;
@@ -272,7 +274,8 @@ module cpu #(
         rs1 <= 0;
         rs2 <= 0;
       end else begin
-        pc_fd <= (is_j_or_b) ? pc_fd : next_pc; // Is is j or b -> insert nop
+        pc_in <= (is_j_or_b) ? pc_in : next_pc; // Is is j or b -> insert nop
+        pc_fd <= pc_in;
         pc_x <= pc_fd;
         imm_x <= imm_fd;
         inst_fd <= next_inst;
@@ -370,8 +373,7 @@ module cpu #(
       // Outputs
       .mem_bios_dout(mem_bios_dout),
       .mem_dmem_dout(mem_dmem_dout),
-      .bios_addrb(bios_addrb),
-      .
+      .bios_addrb(bios_addrb)
     );
 
     reg [31:0] dmem_lex;
