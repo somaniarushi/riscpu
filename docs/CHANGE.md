@@ -4,3 +4,7 @@
 3. Bug fix: changed the assignment of immediate upper 20 bits, ensure sign extension. 
 4. Logic Update: the thirteen bits being pulled out of pc are not [13:0] but [15:2]. This is reflected in FETCH INST.
 5. Logic Update: Since DMEM output needs to be delayed by one clock cycle and `rd` is equal to `inst_mw[11:7]`, we need to delay `rd` by one clock cycle as well.
+6. Logic Update: half-word stores don't mean storing the top or bottom half, they mean storing the bottom half into the top half LOCATION. Same for bytes.
+7. Bug Fix: Forwarding WB->FD should only happen if rd exists in MW instruction.
+8. Bug fix: Writing to rd doesn't need reg write en to be clocked.
+9. Bug fix: changed the inst_fd assignment to next_inst as synchronous instead of clocked in the rst block.
