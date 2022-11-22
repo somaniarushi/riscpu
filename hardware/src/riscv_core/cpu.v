@@ -205,7 +205,8 @@ module cpu #(
     fetch_next_pc(
       // Inputs
       .pc(pc_in),
-      .imm(imm_fd),
+      .pc_x(pc_x),
+      .imm(imm_x),
       .alu(alu_x),
       .pc_sel(pc_sel),
       // Outputs

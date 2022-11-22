@@ -8,3 +8,4 @@
 7. Bug Fix: Forwarding WB->FD should only happen if rd exists in MW instruction.
 8. Bug fix: Writing to rd doesn't need reg write en to be clocked.
 9. Bug fix: changed the inst_fd assignment to next_inst as synchronous instead of clocked in the rst block.
+10. Bug fix: Because the PC is calculated one cycle before the instruction, in JAL handling, we insert a nop in the FD pipeline (`x_is_jal`). Then, we resolve next_pc using EX stage values instead of FD stage values (for the same reason). 

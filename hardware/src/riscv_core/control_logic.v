@@ -25,15 +25,16 @@ module control_logic (
         2. If the branch of inst-X is taken or inst-X is JALR, then jump to ALU value -> ALU, PC Sel = 1
         3. If none of the above 2 are true, go to PC + 4, PC Sel = 2
     */
-    wire fd_is_jal, x_is_jalr, x_branch_taken;
-    assign fd_is_jal = inst_fd[6:0] == 7'h6F;
+    wire fd_is_jal, x_is_jal, x_is_jalr, x_branch_taken;
+    // assign fd_is_jal = inst_fd[6:0] == 7'h6F;
+    assign x_is_jal = inst_x[6:0] == 7'h6F;
     assign x_is_jalr = inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0;
     assign x_branch_taken = 0; // FIXME: DO BRANCHING
 
     always @(*) begin
         if (x_is_jalr || x_branch_taken) begin
             pc_sel = 1;
-        end else if (fd_is_jal) begin
+        end else if (x_is_jal) begin
             pc_sel = 0;
         end else begin
             pc_sel = 2;
@@ -49,7 +50,7 @@ module control_logic (
     wire x_is_branch;
     assign x_is_branch = inst_x[6:0] == 7'h63;
     always @(*) begin
-        if (x_is_jalr || x_is_branch) begin
+        if (x_is_jalr || x_is_branch || x_is_jal) begin
             is_j_or_b = 1;
         end else begin
             is_j_or_b = 0;

@@ -1,6 +1,7 @@
 module fetch_next_pc(
     input [1:0] pc_sel,
     input [31:0] pc,
+    input [31:0] pc_x,
     input [31:0] imm,
     input [31:0] alu,
     output [31:0] next_pc
@@ -16,7 +17,7 @@ module fetch_next_pc(
     always @(*) begin
         // Jump instruction: jal
         if (pc_sel == 0) begin
-            next = pc + imm;
+            next = pc_x + imm;
         // Branch instructions
         end else if (pc_sel == 1) begin
             next = alu;
