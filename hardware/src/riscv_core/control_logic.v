@@ -56,13 +56,17 @@ module control_logic (
         end
     end
 
+    wire mw_rd_exists = inst_mw[6:0] != 7'h63 && inst_mw[6:0] != 7'h23;
+    wire fd_rs1_exists = inst_fd[6:0] == 7'h33 || inst_fd[6:0] == 7'h23 || inst_fd[6:0] == 7'h63 || inst_fd[6:0] == 7'h03 ||inst_fd[6:0] == 7'h13 || inst_fd[6:0] == 7'h67 || inst_fd[6:0] == 7'h73;
+    wire fd_rs2_exists = inst_fd[6:0] == 7'h33 || inst_fd[6:0] == 7'h23 || inst_fd[6:0] == 7'h63;
+
     // Setting wb2d-a
     /* Conflict between rs1 when rd of inst-MW = rs1 of inst-FD. */
     wire [4:0] rd_instmw, rs1_instfd;
     assign rd_instmw = inst_mw[11:7];
     assign rs1_instfd = inst_fd[19:15];
     always @(*) begin
-        if (rd_instmw == rs1_instfd) begin // a conflict exists, forwarding required
+        if ((rd_instmw == rs1_instfd) && mw_rd_exists && fd_rs1_exists) begin // a conflict exists, forwarding required
             wb2d_a = 1;
         end else begin
             wb2d_a = 0;
@@ -74,7 +78,7 @@ module control_logic (
     wire [4:0] rs2_instfd;
     assign rs2_instfd = inst_fd[24:20];
     always @(*) begin
-        if (rd_instmw == rs2_instfd) begin
+        if ((rd_instmw == rs2_instfd) && mw_rd_exists && fd_rs2_exists) begin
             wb2d_b = 1;
         end else begin
             wb2d_b = 0;
@@ -99,13 +103,13 @@ module control_logic (
     */
     wire [4:0] rs1_instx;
     assign rs1_instx = inst_x[19:15];
-    wire rs1_exists; // rs1 exists in types R, I, S, and B
+    wire x_rs1_exists; // rs1 exists in types R, I, S, and B
     wire [6:0] x_opc = inst_x[6:0];
-    assign rs1_exists = x_opc == 7'h33 || x_opc == 7'h23 || x_opc == 7'h63 || x_opc == 7'h03 ||x_opc == 7'h13 || x_opc == 7'h67 || x_opc == 7'h73;
+    assign x_rs1_exists = x_opc == 7'h33 || x_opc == 7'h23 || x_opc == 7'h63 || x_opc == 7'h03 ||x_opc == 7'h13 || x_opc == 7'h67 || x_opc == 7'h73;
 
     always @(*) begin
         // Forwarding Conflict
-        if ((rd_instmw == rs1_instx) && rs1_exists) begin
+        if ((rd_instmw == rs1_instx) && x_rs1_exists && mw_rd_exists) begin
             asel[1] = 1;
         end else begin
             asel[1] = 0;
@@ -125,11 +129,11 @@ module control_logic (
         BSel[1] = 1 when WB forwarding is used. Conflict] between rs2 and rd.
     */
     wire [4:0] rs2_instx = inst_x[24:20];
-    wire rs2_exists; // Needs to be R, S, or B type
-    assign rs2_exists = x_opc == 7'h33 || x_opc == 7'h23 || x_opc == 7'h63;
+    wire x_rs2_exists; // Needs to be R, S, or B type
+    assign x_rs2_exists = x_opc == 7'h33 || x_opc == 7'h23 || x_opc == 7'h63;
     always @(*) begin
         // Forwarding
-        if ((rd_instmw == rs2_instx) && rs2_exists) begin
+        if ((rd_instmw == rs2_instx) && x_rs2_exists && mw_rd_exists) begin
             bsel[1] = 1;
         end else begin
             bsel[1] = 0;

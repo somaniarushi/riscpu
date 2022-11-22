@@ -277,23 +277,23 @@ module cpu #(
         // TODO: Make sure these are correct;
         pc_in <= RESET_PC;
         pc_fd <= 0;
-        inst_fd <= 0;
         pc_x <= 0;
         imm_x <= 0;
         inst_x <= 0;
         rs1 <= 0;
         rs2 <= 0;
       end else begin
-        pc_in <= (is_j_or_b) ? pc_in : next_pc; // Is is j or b -> insert nop
+        pc_in <= next_pc;
         pc_fd <= pc_in;
         pc_x <= pc_fd;
         imm_x <= imm_fd;
-        inst_fd <= rst_reg ? 0 : next_inst;
         inst_x <= inst_fd;
         rs1 <= rs1_fd;
         rs2 <= rs2_fd;
       end
     end
+
+    assign inst_fd = (rst_reg) ? 0 : next_inst;
 
     /*
       Execute Section
@@ -368,9 +368,6 @@ module cpu #(
 
     // TODO: DMEM is also FIFO -> handle
 
-    reg [31:0] addr_d = alu_x;
-    reg [31:0] data_d = rs2_br;
-
     reg [31:0] mem_bios_dout = 0;
     reg [31:0] mem_dmem_dout;
 
@@ -379,6 +376,25 @@ module cpu #(
     assign dmem_addr = alu_x[15:2];
     assign dmem_en = 1;
     assign mem_dmem_dout = dmem_dout;
+
+    // Writing to DMEM
+    reg [3:0] wr_mask;
+    gen_wr_mask(
+      .inst(inst_x),
+      .addr(alu_x),
+      .mask(wr_mask)
+    );
+    assign dmem_we = wr_mask; 
+
+    reg [31:0] data_in;
+    data_in_gen (
+      .in(rs2_br),
+      .mask(wr_mask),
+      .out(data_in)
+    );
+    
+    assign dmem_din = data_in;
+    
 
     // rw_mem(
     //   // Inputs
@@ -417,7 +433,7 @@ module cpu #(
     /*
       DEBUG DISPLAY
     */
-    always @(posedge clk) begin
+    // always @(posedge clk) begin
       // $display("========= CLK CYCLE REPORT =============");
       // $display("Signal reset: %b", rst);
       // $display("---------------------------------------");
@@ -438,6 +454,6 @@ module cpu #(
       // $display("write back select %d", wb_sel);
       // $display("wite back val %h", wb_val);
       // $display("---------------------------------------");
-    end
+    // end
 
 endmodule
