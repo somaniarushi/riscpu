@@ -399,7 +399,7 @@ module cpu #(
       .in(mem_dmem_dout),
       .out(dmem_lex),
       .inst(inst_mw),
-      .addr(alu_mw[15:2])
+      .addr(alu_mw)
     );
 
     wb_selector(
