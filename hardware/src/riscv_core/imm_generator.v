@@ -7,11 +7,12 @@ module immediate_generator (
     assign opc = inst[6:0];
 
     always @(*) begin
+        // FIXME: SIGN EXTEND ALL INSTRUCTION TYPES
         // Instruction = I-Type
         if (opc == 7'h03 || opc == 7'h13 || opc == 7'h67 || opc == 7'h73) begin
                     // TODO: 73 -> CSR instructions, keep in?
             imm_reg[11:0] = inst[31:20];
-            imm_reg[31:12] = 20'd0;
+            imm_reg[31:12] = inst[31]? 20'hfffff: 20'd0;
         end
         // Instruction = S-Type
         else if (opc == 7'h23) begin

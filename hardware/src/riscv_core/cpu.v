@@ -14,9 +14,9 @@ module cpu #(
     // BIOS Memory
     // Synchronous read: read takes one cycle
     // Synchronous write: write takes one cycle
-    wire [11:0] bios_addra, bios_addrb;
-    wire [31:0] bios_douta, bios_doutb;
-    wire bios_ena, bios_enb;
+    reg [11:0] bios_addra, bios_addrb;
+    reg [31:0] bios_douta, bios_doutb;
+    reg bios_ena, bios_enb;
     bios_mem bios_mem (
       .clk(clk),
       .ena(bios_ena),
@@ -48,10 +48,10 @@ module cpu #(
     // Synchronous read: read takes one cycle
     // Synchronous write: write takes one cycle
     // Write-byte-enable: select which of the four bytes to write
-    wire [31:0] imem_dina, imem_doutb;
-    wire [13:0] imem_addra, imem_addrb;
-    wire [3:0] imem_wea;
-    wire imem_ena;
+    reg [31:0] imem_dina, imem_doutb;
+    reg [13:0] imem_addra, imem_addrb;
+    reg [3:0] imem_wea;
+    reg imem_ena;
     imem imem (
       .clk(clk),
       .ena(imem_ena),
@@ -157,10 +157,13 @@ module cpu #(
     // Selects whether the memory unit reads or writes.
     reg mem_rw;
     // Selects writeback values
-    reg wb_sel;
+    reg [1:0] wb_sel;
+    // Select reg wr en
+    reg reg_wen;
 
     control_logic cl (
       // Inputs
+      .clk(clk),
       .inst_fd(inst_fd),
       .inst_x(inst_x),
       .inst_mw(inst_mw),
@@ -172,11 +175,12 @@ module cpu #(
       .wb2d_a(wb2d_a),
       .wb2d_b(wb2d_b),
       .brun(brun),
+      .reg_wen(reg_wen),
       .asel(asel),
       .bsel(bsel),
       .alu_sel(alu_sel),
       .bios_dmem(bios_dmem),
-      .mem_rw(mem_rw),
+      .mem_rw(mem_rimem_doutw),
       .wb_sel(wb_sel)
     );
 
@@ -209,16 +213,16 @@ module cpu #(
     );
 
 
-    assign bios_ena = 1; // FIXME: ???
-    assign imem_ena = 1;
+    // assign bios_ena = 1; // FIXME: ???
+    // assign imem_ena = 1;
 
-    assign inst_sel = pc_fd[30]; // Lock in inst_sel to it's corresponding value
+    assign inst_sel = pc_in[30]; // Lock in inst_sel to it's corresponding value
 
     reg [31:0] next_inst;
 
     fetch_instruction (
       // Inputs
-      .pc(pc_fd),
+      .pc(pc_in),
       .bios_dout(bios_douta),
       .imem_dout(imem_doutb),
       .is_j_or_b(is_j_or_b),
@@ -256,13 +260,19 @@ module cpu #(
     );
 
     // TODO: Writeback TODO
-
-    // FIXME: Jal forwarding???
-
+    assign we = reg_wen;
+    assign wa = inst_mw[11:7];
+    assign wd = wb_val;
 
     reg [31:0] rs1, rs2;
+    reg rst_reg;
     // Clocking block
     always @(posedge clk) begin
+      // Delaying the rst register by a clock cycle, such that, if there was a
+      // rst signal in the previous clock cycle
+      // We make sure to null out inst_fd in this clock cycle
+      rst_reg <= rst;
+
       if (rst) begin
         // TODO: Make sure these are correct;
         pc_in <= RESET_PC;
@@ -278,7 +288,7 @@ module cpu #(
         pc_fd <= pc_in;
         pc_x <= pc_fd;
         imm_x <= imm_fd;
-        inst_fd <= next_inst;
+        inst_fd <= rst_reg ? 0 : next_inst;
         inst_x <= inst_fd;
         rs1 <= rs1_fd;
         rs2 <= rs2_fd;
@@ -361,25 +371,35 @@ module cpu #(
     reg [31:0] addr_d = alu_x;
     reg [31:0] data_d = rs2_br;
 
-    reg [31:0] mem_bios_dout;
+    reg [31:0] mem_bios_dout = 0;
     reg [31:0] mem_dmem_dout;
-    rw_mem(
-      // Inputs
-      .addr_d(addr_d),
-      .data_d(data_d),
-      .mem_rw(mem_rw),
-      .imem_w(pc_x[30]),
-      // TODO: Add interaction with IMEM and DMEM
-      // Outputs
-      .mem_bios_dout(mem_bios_dout),
-      .mem_dmem_dout(mem_dmem_dout),
-      .bios_addrb(bios_addrb)
-    );
+
+
+    // Reading from DMEM
+    assign dmem_addr = alu_x[15:2];
+    assign dmem_en = 1;
+    assign mem_dmem_dout = dmem_dout;
+
+    // rw_mem(
+    //   // Inputs
+    //   .addr_d(addr_d),
+    //   .data_d(data_d),
+    //   .mem_rw(mem_rw),
+    //   .imem_w(pc_x[30]),
+    //   // TODO: Add interaction with IMEM and DMEM
+    //   // Outputs
+    //   .mem_bios_dout(mem_bios_dout),
+    //   .mem_dmem_dout(mem_dmem_dout),
+    //   .bios_addrb(bios_addrb)
+    // );
 
     reg [31:0] dmem_lex;
+    // assign dmem_lex = mem_dmem_dout;
     load_extender(
       .in(mem_dmem_dout),
-      .out(dmem_lex)
+      .out(dmem_lex),
+      .inst(inst_mw),
+      .addr(alu_mw[15:2])
     );
 
     wb_selector(
@@ -391,7 +411,33 @@ module cpu #(
       .wb_sel(wb_sel),
       .bios_dmem(bios_dmem),
       // Outputs
-      .wb(wb_val)
+      .wb_val(wb_val)
     );
+
+    /*
+      DEBUG DISPLAY
+    */
+    always @(posedge clk) begin
+      // $display("========= CLK CYCLE REPORT =============");
+      // $display("Signal reset: %b", rst);
+      // $display("---------------------------------------");
+      // $display("pc_in: %h", pc_in);
+      // $display("pc_fd: %h", pc_fd);
+      // $display("pc_x: %h", pc_x);
+      // $display("pc_mw: %h", pc_mw);
+      // $display("---------------------------------------");
+      // $display("inst_fd: %h", inst_fd);
+      // $display("inst_x: %h", inst_x);
+      // $display("inst_mw: %h", inst_mw);
+      // $display("---------------------------------------");
+      // $display("reg_wen: %b", reg_wen);
+      // $display("reg_write_val, %h", wd);
+      // $display("reg_write_addr, %d", wa);
+      // $display("---------------------------------------");
+      // $display("dmem_lex, %h", dmem_dout);
+      // $display("write back select %d", wb_sel);
+      // $display("wite back val %h", wb_val);
+      // $display("---------------------------------------");
+    end
 
 endmodule

@@ -1,4 +1,5 @@
 module control_logic (
+    input clk,
     input [31:0] inst_fd,
     input [31:0] inst_x,
     input [31:0] inst_mw,
@@ -9,12 +10,13 @@ module control_logic (
     output reg wb2d_a,
     output reg wb2d_b,
     output reg brun,
+    output reg reg_wen,
     output reg [1:0] asel,
     output reg [1:0] bsel,
     output reg [3:0] alu_sel,
     output reg bios_dmem,
     output reg mem_rw,
-    output reg wb_sel
+    output reg [1:0] wb_sel
 );
 
     // Setting PCSel
@@ -159,21 +161,21 @@ module control_logic (
                 3'b010: alu_sel = 3;
                 3'b011: alu_sel = 4;
                 3'b100: alu_sel = 5;
-                3'b101: alu_sel = (x_func3 == 7'b0) ? 6 : 7;
+                3'b101: alu_sel = (x_func7 == 7'b0) ? 6 : 7;
                 3'b110: alu_sel = 8;
                 3'b111: alu_sel = 9;
                 default: alu_sel = 0;
             endcase
         end
         // For I-Type instructions
-        else if (x_opc == 7'h03 || x_opc == 7'h13 || x_opc == 7'h67 || x_opc == 7'h73) begin
+        else if (x_opc == 7'h13 || x_opc == 7'h67 || x_opc == 7'h73) begin
             case (x_func3)
                 3'b000: alu_sel = 0;
                 3'b001: alu_sel = 2;
                 3'b010: alu_sel = 3;
                 3'b011: alu_sel = 4;
                 3'b100: alu_sel = 5;
-                3'b101: alu_sel = (x_func3 == 7'b0) ? 6 : 7;
+                3'b101: alu_sel = (x_func7 == 7'b0) ? 6 : 7;
                 3'b110: alu_sel = 8;
                 3'b111: alu_sel = 9;
                 default: alu_sel = 0;
@@ -182,6 +184,64 @@ module control_logic (
         // For every other instruction -> default to add
         else begin
             alu_sel = 0;
+        end
+    end
+
+    // Setting bios_dmem
+    /*
+        If bios_dmem = 1, then use BIOS. Otherwise, use DMEM.
+    */
+    always @(*) begin
+        bios_dmem = 0;
+    end
+
+    // Setting MemRW
+    /*
+    1. If the instruction is an S-type, then write, otherwise read.
+    */
+    always @(*) begin
+        if (inst_x[6:0] == 7'h23) begin // TODO: inst_mw?
+            mem_rw = 1;
+        end else begin
+            mem_rw = 0;
+        end
+    end
+
+    // Setting RegWen
+    /*
+        1. If the type of instruction is not branch or store, we're writing to RD.
+        2. Otherwise, set to 0.
+    */
+    reg register_wen;
+    always @(*) begin
+        // Instruction is branch or store.
+        if (inst_mw[6:0] == 7'h23 || inst_mw[6:0] == 7'h63) begin
+            register_wen = 0;
+        end else begin
+            register_wen = 1;
+        end
+    end
+
+    always @(posedge clk) begin
+        reg_wen <= register_wen;
+    end
+
+    // Setting WBSEL
+    /*
+        1. If inst_mw = jal or jalr -> writing PC + 4. WBSEL = 2
+        2. If inst_mw = lw | lh | lb -> writing Mem, WBSEL = 1
+        3. Else -> writing ALU, WBSEL = 0
+    */
+    wire instmw_is_jalr = inst_mw[6:0] == 7'h67 && inst_mw[14:12] == 3'h0;
+    wire instmw_is_jal = inst_mw[6:0] == 7'h6F;
+    wire instmw_is_load = inst_mw[6:0] == 7'h03;
+    always @(*) begin
+        if (instmw_is_jal || instmw_is_jalr) begin
+            wb_sel = 2;
+        end else if (instmw_is_load) begin
+            wb_sel = 1;
+        end else begin
+            wb_sel = 0;
         end
     end
 

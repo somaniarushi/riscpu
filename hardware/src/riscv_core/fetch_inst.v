@@ -14,10 +14,14 @@ module fetch_instruction(
     reg [31:0] imem;
     assign imem_addr = imem;
 
+    // For every +4 to the PC, there should only be a +1 to IMEM indices.
+    reg [31:0] pc_right_shifted;
+    assign pc_right_shifted = pc >> 2;
+
     // IMEM/BIOS Read
     always @(*) begin
       bios = pc[11:0]; // Set bios_addra
-      imem = pc[13:0]; // Set imem_addrb
+      imem = pc_right_shifted[13:0]; // Set imem_addrb
     end
 
     // Inst Sel + Jump logic
