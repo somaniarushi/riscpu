@@ -105,7 +105,7 @@ module cpu #(
     );
 
     // CSR handling
-    reg [31:0] tohost_csr = 0;
+    reg [31:0] tohost_csr;
 
     // The PCs for the instructions in the pipeline
     reg [31:0] pc_in;
@@ -145,15 +145,13 @@ module cpu #(
     // Selection whether to input a nop or not
     reg is_j_or_b;
     // Selecting whether to forward from WB to Decode
-    reg mw2d_a, mw2d_b;
+    reg wb2d_a, wb2d_b;
     // Selecting values for branch comparison
     reg brun;
     // Selecting values that input to the ALU
     reg [1:0] asel, bsel;
     // Selecting operation performed by the ALU
     reg [3:0] alu_sel;
-    // Choose between bios and dmem.
-    reg bios_dmem;
     // Selects whether the memory unit reads or writes.
     reg mem_rw;
     // Selects writeback values
@@ -179,8 +177,7 @@ module cpu #(
       .asel(asel),
       .bsel(bsel),
       .alu_sel(alu_sel),
-      .bios_dmem(bios_dmem),
-      .mem_rw(mem_rimem_doutw),
+      .mem_rw(mem_rw),
       .wb_sel(wb_sel)
     );
 
@@ -202,26 +199,28 @@ module cpu #(
 
     // PC updater
     reg [31:0] next_pc;
-    fetch_next_pc(
+    fetch_next_pc fn(
       // Inputs
       .pc(pc_in),
+      .pc_fd(pc_fd),
       .pc_x(pc_x),
       .imm(imm_x),
       .alu(alu_x),
       .pc_sel(pc_sel),
+      .brlt(brlt),
+      .breq(breq),
+      .inst(inst_x),
       // Outputs
       .next_pc(next_pc)
     );
 
 
-    // assign bios_ena = 1; // FIXME: ???
-    // assign imem_ena = 1;
-
+    assign bios_ena = 1;
     assign inst_sel = pc_in[30]; // Lock in inst_sel to it's corresponding value
 
     reg [31:0] next_inst;
 
-    fetch_instruction (
+    fetch_instruction fi (
       // Inputs
       .pc(pc_in),
       .bios_dout(bios_douta),
@@ -234,7 +233,7 @@ module cpu #(
       .inst(next_inst)
     );
 
-    immediate_generator (
+    immediate_generator immgen (
       // Inputs
       .inst(inst_fd),
       // Outputs
@@ -242,10 +241,11 @@ module cpu #(
     );
 
 
-    reg [31:0] rs1_fd, rs2_fd;
+    reg [31:0] rs1_fd, rs2_fd, csr_reg;
 
-    // TODO: we (write enable) set??
-    read_from_reg (
+    // Sets ra1 and ra2
+    // Handles forwarding for rs1, rs2 and wb_val
+    read_from_reg regread (
       // Inputs
       .inst(inst_fd),
       .wb2d_a(wb2d_a),
@@ -260,6 +260,25 @@ module cpu #(
       .rs2(rs2_fd)
     );
 
+
+    always @(posedge clk) begin 
+      if (rst) begin
+        tohost_csr <= 0;
+      end else begin
+        // I type CSR
+        if (inst_fd[6:0] == 7'h73) begin 
+          if (inst_fd[14] == 1) begin 
+              tohost_csr <= imm_fd;
+          end else begin 
+              tohost_csr <= rs1_fd;
+          end 
+        end 
+      end
+    end 
+
+
+
+ 
     // TODO: Writeback TODO
     assign we = reg_wen;
     assign wa = inst_mw[11:7];
@@ -275,7 +294,6 @@ module cpu #(
       rst_reg <= rst;
 
       if (rst) begin
-        // TODO: Make sure these are correct;
         pc_in <= RESET_PC;
         pc_fd <= 0;
         pc_x <= 0;
@@ -289,8 +307,9 @@ module cpu #(
         pc_x <= pc_fd;
         imm_x <= imm_fd;
         inst_x <= inst_fd;
-        rs1 <= rs1_fd;
-        rs2 <= rs2_fd;
+        // CSR Instructions
+        rs1 <= (inst_fd[6:0] == 7'h73) ? tohost_csr : rs1_fd;
+        rs2 <= (inst_fd[6:0] == 7'h73) ? 0 : rs2_fd;
       end
     end
 
@@ -308,7 +327,7 @@ module cpu #(
     reg [31:0] rs1_br, rs2_br;
     reg [31:0] rs1_in, rs2_in;
 
-    ex_forwarding(
+    ex_forwarding forwarder (
       // Inputs
       .rs1(rs1),
       .rs2(rs2),
@@ -324,7 +343,7 @@ module cpu #(
       .rs2_br(rs2_br)
     );
 
-    branch_comp (
+    branch_comp comparator (
       // Inputs
       .brun(brun),
       .rs1(rs1_br),
@@ -335,7 +354,7 @@ module cpu #(
     );
 
 
-    alu (
+    alu alunit (
       // Inputs
       .rs1(rs1_in),
       .rs2(rs2_in),
@@ -369,33 +388,37 @@ module cpu #(
 
     // TODO: DMEM is also FIFO -> handle
 
-    reg [31:0] mem_bios_dout = 0;
+    reg [31:0] mem_bios_dout;
     reg [31:0] mem_dmem_dout;
 
+    // Writing to DMEM
+    reg [3:0] wr_mask;
+    gen_wr_mask masker (
+      .inst(inst_x),
+      .addr(alu_x),
+      .mask(wr_mask)
+    );
+    assign dmem_we = wr_mask;
+
+    reg [31:0] data_in;
+    data_in_gen datagen (
+      .in(rs2_br),
+      .mask(wr_mask),
+      .out(data_in)
+    );
+
+    assign dmem_din = data_in;
 
     // Reading from DMEM
     assign dmem_addr = alu_x[15:2];
     assign dmem_en = 1;
     assign mem_dmem_dout = dmem_dout;
 
-    // Writing to DMEM
-    reg [3:0] wr_mask;
-    gen_wr_mask(
-      .inst(inst_x),
-      .addr(alu_x),
-      .mask(wr_mask)
-    );
-    assign dmem_we = wr_mask; 
+    // Reading from BIOS
+    assign bios_addrb = alu_x[13:2];
+    assign bios_enb = 1;
+    assign mem_bios_dout = bios_doutb;
 
-    reg [31:0] data_in;
-    data_in_gen (
-      .in(rs2_br),
-      .mask(wr_mask),
-      .out(data_in)
-    );
-    
-    assign dmem_din = data_in;
-    
 
     // rw_mem(
     //   // Inputs
@@ -412,21 +435,21 @@ module cpu #(
 
     reg [31:0] dmem_lex;
     // assign dmem_lex = mem_dmem_dout;
-    load_extender(
+    load_extender lexer (
       .in(mem_dmem_dout),
       .out(dmem_lex),
       .inst(inst_mw),
       .addr(alu_mw)
     );
 
-    wb_selector(
+    wb_selector wber (
       // Inputs
       .mem_bios_dout(mem_bios_dout),
       .dmem_lex(dmem_lex),
       .pc(pc_mw),
       .alu(alu_mw),
       .wb_sel(wb_sel),
-      .bios_dmem(bios_dmem),
+      .bios_dmem(alu_x[31:28]),
       // Outputs
       .wb_val(wb_val)
     );

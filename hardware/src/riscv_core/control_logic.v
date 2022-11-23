@@ -14,7 +14,6 @@ module control_logic (
     output reg [1:0] asel,
     output reg [1:0] bsel,
     output reg [3:0] alu_sel,
-    output reg bios_dmem,
     output reg mem_rw,
     output reg [1:0] wb_sel
 );
@@ -25,16 +24,15 @@ module control_logic (
         2. If the branch of inst-X is taken or inst-X is JALR, then jump to ALU value -> ALU, PC Sel = 1
         3. If none of the above 2 are true, go to PC + 4, PC Sel = 2
     */
-    wire fd_is_jal, x_is_jal, x_is_jalr, x_branch_taken;
-    // assign fd_is_jal = inst_fd[6:0] == 7'h6F;
+    wire x_is_jal, x_is_jalr, x_is_branch;
     assign x_is_jal = inst_x[6:0] == 7'h6F;
     assign x_is_jalr = inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0;
-    assign x_branch_taken = 0; // FIXME: DO BRANCHING
+    assign x_is_branch = inst_x[6:0] == 7'h63;
 
     always @(*) begin
-        if (x_is_jalr || x_branch_taken) begin
+        if (x_is_branch) begin
             pc_sel = 1;
-        end else if (x_is_jal) begin
+        end else if (x_is_jal || x_is_jalr) begin
             pc_sel = 0;
         end else begin
             pc_sel = 2;
@@ -47,8 +45,6 @@ module control_logic (
         2. If inst-X is a branch instruction, set to true.
         TODO: Anything missing here?
     */
-    wire x_is_branch;
-    assign x_is_branch = inst_x[6:0] == 7'h63;
     always @(*) begin
         if (x_is_jalr || x_is_branch || x_is_jal) begin
             is_j_or_b = 1;
@@ -140,8 +136,8 @@ module control_logic (
             bsel[1] = 0;
         end
 
-        // IMM vs PC
-        if (inst_x[6:0] != 7'h33) begin
+        // IMM vs rs2
+        if (inst_x[6:0] != 7'h33 && inst_x[6:0] != 7'h73) begin
             bsel[0] = 1;
         end else begin
             bsel[0] = 0;
@@ -173,7 +169,7 @@ module control_logic (
             endcase
         end
         // For I-Type instructions
-        else if (x_opc == 7'h13 || x_opc == 7'h67 || x_opc == 7'h73) begin
+        else if (x_opc == 7'h13 || x_opc == 7'h67) begin
             case (x_func3)
                 3'b000: alu_sel = 0;
                 3'b001: alu_sel = 2;
@@ -190,14 +186,6 @@ module control_logic (
         else begin
             alu_sel = 0;
         end
-    end
-
-    // Setting bios_dmem
-    /*
-        If bios_dmem = 1, then use BIOS. Otherwise, use DMEM.
-    */
-    always @(*) begin
-        bios_dmem = 0;
     end
 
     // Setting MemRW
@@ -217,18 +205,13 @@ module control_logic (
         1. If the type of instruction is not branch or store, we're writing to RD.
         2. Otherwise, set to 0.
     */
-    reg register_wen;
     always @(*) begin
         // Instruction is branch or store.
         if (inst_mw[6:0] == 7'h23 || inst_mw[6:0] == 7'h63) begin
-            register_wen = 0;
+            reg_wen = 0;
         end else begin
-            register_wen = 1;
+            reg_wen = 1;
         end
-    end
-
-    always @(posedge clk) begin
-        reg_wen <= register_wen;
     end
 
     // Setting WBSEL

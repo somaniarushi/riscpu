@@ -9,3 +9,5 @@
 8. Bug fix: Writing to rd doesn't need reg write en to be clocked.
 9. Bug fix: changed the inst_fd assignment to next_inst as synchronous instead of clocked in the rst block.
 10. Bug fix: Because the PC is calculated one cycle before the instruction, in JAL handling, we insert a nop in the FD pipeline (`x_is_jal`). Then, we resolve next_pc using EX stage values instead of FD stage values (for the same reason). 
+11. Bug Fix: Swapped the pc + 4 value in next_pc to be pc_fd. Because we are inserting a nop, we want to pc to stay at the same value if the branch is not taken so we can run the instruction at that pc. 
+12. Logic Update: The CSRI immediate value is stored in the rs1 location, needed to index into instruction to retrieve, then assign to CSR. Passed the second CSRRWI test as well as all hazard tests. Moved immediate logic to imm_generator. 

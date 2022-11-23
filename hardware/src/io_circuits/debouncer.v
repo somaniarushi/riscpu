@@ -14,6 +14,7 @@ module debouncer #(
     wire on;
     reg [WRAPPING_CNT_WIDTH-1:0] wrapping_counter = 0;
     reg [SAT_CNT_WIDTH-1:0] saturating_counter [WIDTH-1:0];
+    reg counter_edge;
     integer i, j;
 
     assign debounced_signal = debounced;
