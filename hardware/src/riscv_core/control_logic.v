@@ -24,10 +24,13 @@ module control_logic (
         2. If the branch of inst-X is taken or inst-X is JALR, then jump to ALU value -> ALU, PC Sel = 1
         3. If none of the above 2 are true, go to PC + 4, PC Sel = 2
     */
-    wire x_is_jal, x_is_jalr, x_is_branch;
+    wire x_is_jal, x_is_jalr, x_is_branch, mw_is_branch, mw_is_jal, mw_is_jalr;
     assign x_is_jal = inst_x[6:0] == 7'h6F;
+    assign mw_is_jal = inst_mw[6:0] == 7'h6F;
     assign x_is_jalr = inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0;
+    assign mw_is_jalr = inst_mw[6:0] == 7'h67 && inst_mw[14:12] == 3'h0;
     assign x_is_branch = inst_x[6:0] == 7'h63;
+    assign mw_is_branch = inst_mw[6:0] == 7'h63;
 
     always @(*) begin
         if (x_is_branch) begin
@@ -46,14 +49,14 @@ module control_logic (
         TODO: Anything missing here?
     */
     always @(*) begin
-        if (x_is_jalr || x_is_branch || x_is_jal) begin
+        if (x_is_jalr || x_is_branch || x_is_jal || mw_is_branch || mw_is_jal || mw_is_jalr) begin
             is_j_or_b = 1;
         end else begin
             is_j_or_b = 0;
         end
     end
 
-    wire mw_rd_exists = inst_mw[6:0] != 7'h63 && inst_mw[6:0] != 7'h23;
+    wire mw_rd_exists = inst_mw[6:0] != 7'h63 && inst_mw[6:0] != 7'h23 && (inst_mw[11:7] != 0);
     wire fd_rs1_exists = inst_fd[6:0] == 7'h33 || inst_fd[6:0] == 7'h23 || inst_fd[6:0] == 7'h63 || inst_fd[6:0] == 7'h03 ||inst_fd[6:0] == 7'h13 || inst_fd[6:0] == 7'h67 || inst_fd[6:0] == 7'h73;
     wire fd_rs2_exists = inst_fd[6:0] == 7'h33 || inst_fd[6:0] == 7'h23 || inst_fd[6:0] == 7'h63;
 
@@ -151,7 +154,7 @@ module control_logic (
     /*
         ADD = 0, SUB = 1, SLL = 2, SLT = 3
         SLTU = 4, XOR = 5, SRL = 6, SRA = 7, OR = 8,
-        AND = 9
+        AND = 9, PASSIMM = 10
     */
     // For R-Type
     always @(*) begin
@@ -182,6 +185,10 @@ module control_logic (
                 default: alu_sel = 0;
             endcase
         end
+        // If instruction = LUI, set alu to pass immediate onwards
+        else if (x_opc == 7'h37) begin
+            alu_sel = 10;
+        end
         // For every other instruction -> default to add
         else begin
             alu_sel = 0;
@@ -206,11 +213,12 @@ module control_logic (
         2. Otherwise, set to 0.
     */
     always @(*) begin
-        // Instruction is branch or store.
-        if (inst_mw[6:0] == 7'h23 || inst_mw[6:0] == 7'h63) begin
-            reg_wen = 0;
-        end else begin
+        // Instruction is branch or store (rd doesn't exist) or rd is zero, don't write.
+
+        if (mw_rd_exists) begin
             reg_wen = 1;
+        end else begin
+            reg_wen = 0;
         end
     end
 

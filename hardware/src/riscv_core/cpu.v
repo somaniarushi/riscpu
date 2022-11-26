@@ -32,10 +32,10 @@ module cpu #(
     // Synchronous read: read takes one cycle
     // Synchronous write: write takes one cycle
     // Write-byte-enable: select which of the four bytes to write
-    wire [13:0] dmem_addr;
-    wire [31:0] dmem_din, dmem_dout;
-    wire [3:0] dmem_we;
-    wire dmem_en;
+    reg [13:0] dmem_addr;
+    reg [31:0] dmem_din, dmem_dout;
+    reg [3:0] dmem_we;
+    reg dmem_en;
     dmem dmem (
       .clk(clk),
       .en(dmem_en),
@@ -84,7 +84,7 @@ module cpu #(
     wire uart_rx_data_out_valid;
     wire uart_rx_data_out_ready;
     //// UART Transmitter
-    wire [7:0] uart_tx_data_in;
+    reg [7:0] uart_tx_data_in;
     wire uart_tx_data_in_valid;
     wire uart_tx_data_in_ready;
     uart #(
@@ -260,25 +260,6 @@ module cpu #(
       .rs1(rs1_fd),
       .rs2(rs2_fd)
     );
-
-
-    always @(posedge clk) begin 
-      if (rst) begin
-        tohost_csr <= 0;
-      end else begin
-        // I type CSR
-        if (inst_fd[6:0] == 7'h73) begin 
-          if (inst_fd[14] == 1) begin 
-              tohost_csr <= imm_fd;
-          end else begin 
-              tohost_csr <= rs1_fd;
-          end 
-        end 
-      end
-    end 
-
-
-
  
     // TODO: Writeback TODO
     assign we = reg_wen;
@@ -309,8 +290,8 @@ module cpu #(
         imm_x <= imm_fd;
         inst_x <= inst_fd;
         // CSR Instructions
-        rs1 <= (inst_fd[6:0] == 7'h73) ? tohost_csr : rs1_fd;
-        rs2 <= (inst_fd[6:0] == 7'h73) ? 0 : rs2_fd;
+        rs1 <= rs1_fd;
+        rs2 <= rs2_fd;
       end
     end
 
@@ -327,6 +308,22 @@ module cpu #(
 
     reg [31:0] rs1_br, rs2_br;
     reg [31:0] rs1_in, rs2_in;
+
+
+    always @(posedge clk) begin 
+      if (rst) begin
+        tohost_csr <= 0;
+      end else begin
+        // I type CSR
+        if (inst_x[6:0] == 7'h73) begin 
+          if (inst_x[14] == 1) begin 
+              tohost_csr <= imm_x;
+          end else begin 
+              tohost_csr <= rs1_br;
+          end 
+        end 
+      end
+    end 
 
     ex_forwarding forwarder (
       // Inputs
@@ -365,10 +362,17 @@ module cpu #(
     );
 
     always @(posedge clk) begin
-      pc_mw <= pc_x;
-      inst_mw <= inst_x;
-      alu_mw <= alu_x;
-      imm_mw <= imm_x;
+      if (rst) begin
+        pc_mw <= 0;
+        inst_mw <= 0;
+        alu_mw <= 0;
+        imm_mw <= 0;
+      end else begin
+        pc_mw <= pc_x;
+        inst_mw <= inst_x;
+        alu_mw <= alu_x;
+        imm_mw <= imm_x;
+      end
     end
 
 
@@ -399,7 +403,7 @@ module cpu #(
       .addr(alu_x),
       .mask(wr_mask)
     );
-    assign dmem_we = wr_mask;
+    
 
     reg [31:0] data_in;
     data_in_gen datagen (
@@ -407,12 +411,21 @@ module cpu #(
       .mask(wr_mask),
       .out(data_in)
     );
-
-    assign dmem_din = data_in;
-
+    // TODO: set guards on writing to dmem based on the top four bits
     // Reading from DMEM
-    assign dmem_addr = alu_x[15:2];
-    assign dmem_en = 1;
+    always @(*) begin
+      if (alu_x[31:30] == 2'b00 && alu_x[28] == 1) begin
+        dmem_addr = alu_x[15:2];
+        dmem_en = 1;
+        dmem_din = data_in;
+        dmem_we = wr_mask;
+      end else begin
+        dmem_addr = 0;
+        dmem_en = 0;
+        dmem_din = 0;
+        dmem_we = 0;
+      end
+    end
     assign mem_dmem_dout = dmem_dout;
 
     // Reading from BIOS
@@ -420,19 +433,65 @@ module cpu #(
     assign bios_enb = 1;
     assign mem_bios_dout = bios_doutb;
 
+    // Read from UART
 
-    // rw_mem(
-    //   // Inputs
-    //   .addr_d(addr_d),
-    //   .data_d(data_d),
-    //   .mem_rw(mem_rw),
-    //   .imem_w(pc_x[30]),
-    //   // TODO: Add interaction with IMEM and DMEM
-    //   // Outputs
-    //   .mem_bios_dout(mem_bios_dout),
-    //   .mem_dmem_dout(mem_dmem_dout),
-    //   .bios_addrb(bios_addrb)
-    // );
+    wire [31:0] alu_uart;
+    assign alu_uart = alu_mw;
+  
+    reg [31:0] uart_data_out;
+    always @(*) begin 
+      if (alu_uart[31:28] == 4'b1000) begin 
+        // UART control signal 
+        if (alu_uart[3:0] == 0) begin 
+          uart_data_out = {30'b0, uart_rx_data_out_valid, uart_tx_data_in_ready};
+        end 
+        // UART Receiver data 
+        else if (alu_uart[3:0] == 'h4) begin 
+          uart_data_out = {24'b0, uart_rx_data_out};
+        end 
+        // Default 
+        else begin 
+          uart_data_out = 32'b0;
+        end 
+      end 
+      // Default 
+      else begin 
+        uart_data_out = 32'b0;
+      end 
+    end 
+
+    // Write to UART
+    always @(*) begin 
+      if (alu_uart[31:28] == 4'b1000) begin 
+        if (alu_uart[3:0] == 'h8) begin 
+          uart_tx_data_in = data_in[7:0];
+        end 
+        else begin 
+          uart_tx_data_in = 8'h0;
+        end 
+      end 
+      else begin 
+          uart_tx_data_in = 8'b0;
+      end 
+    end 
+
+    // Assign control signals
+    assign uart_rx_data_out_ready = (alu_x == 32'h80000004);
+    assign uart_tx_data_in_valid = (alu_x == 32'h80000008);
+
+
+    // Write to IMEM
+    always @(*) begin 
+      if (alu_x[31:29] == 3'b001 && pc_x[30] == 1) begin 
+        imem_addra = alu_x[15:2];
+        imem_dina = data_in;
+        imem_wea = wr_mask;
+      end else begin 
+        imem_addra = 0;
+        imem_dina = 0;
+        imem_wea = 0;
+      end 
+    end 
 
     reg [31:0] dmem_lex;
     // assign dmem_lex = mem_dmem_dout;
@@ -447,38 +506,13 @@ module cpu #(
       // Inputs
       .mem_bios_dout(mem_bios_dout),
       .dmem_lex(dmem_lex),
+      .uart_out(uart_data_out),
       .pc(pc_mw),
       .alu(alu_mw),
       .wb_sel(wb_sel),
-      .bios_dmem(alu_x[31:28]),
+      .mem_out_sel(alu_x[31:28]),
       // Outputs
       .wb_val(wb_val)
     );
-
-    /*
-      DEBUG DISPLAY
-    */
-    // always @(posedge clk) begin
-      // $display("========= CLK CYCLE REPORT =============");
-      // $display("Signal reset: %b", rst);
-      // $display("---------------------------------------");
-      // $display("pc_in: %h", pc_in);
-      // $display("pc_fd: %h", pc_fd);
-      // $display("pc_x: %h", pc_x);
-      // $display("pc_mw: %h", pc_mw);
-      // $display("---------------------------------------");
-      // $display("inst_fd: %h", inst_fd);
-      // $display("inst_x: %h", inst_x);
-      // $display("inst_mw: %h", inst_mw);
-      // $display("---------------------------------------");
-      // $display("reg_wen: %b", reg_wen);
-      // $display("reg_write_val, %h", wd);
-      // $display("reg_write_addr, %d", wa);
-      // $display("---------------------------------------");
-      // $display("dmem_lex, %h", dmem_dout);
-      // $display("write back select %d", wb_sel);
-      // $display("wite back val %h", wb_val);
-      // $display("---------------------------------------");
-    // end
 
 endmodule

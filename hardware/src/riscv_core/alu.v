@@ -7,7 +7,7 @@ module alu (
     /*
         ADD = 0, SUB = 1, SLL = 2, SLT = 3
         SLTU = 4, XOR = 5, SRL = 6, SRA = 7, OR = 8,
-        AND = 9
+        AND = 9, PASSIMM = 10
     */
     // Shift left logical and shift right logical can only shift
     // A maximum of 2^5 = 32 times (AKA, 32 values). Thus,
@@ -22,9 +22,10 @@ module alu (
             'd4: out = (rs1 < rs2) ? 1 : 0;
             'd5: out = rs1 ^ rs2;
             'd6: out = rs1 >> rs2_res;
-            'd7: out = $signed(rs1) >>> rs2;
+            'd7: out = $signed(rs1) >>> rs2_res;
             'd8: out = rs1 | rs2;
             'd9: out = rs1 & rs2;
+            'd10: out = rs2;
             default: out = rs1 + rs2;
         endcase
     end

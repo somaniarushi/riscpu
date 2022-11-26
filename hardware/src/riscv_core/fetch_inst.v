@@ -20,7 +20,7 @@ module fetch_instruction(
 
     // IMEM/BIOS Read
     always @(*) begin
-      bios = pc[11:0]; // Set bios_addra
+      bios = pc_right_shifted[11:0]; // Set bios_addra
       imem = pc_right_shifted[13:0]; // Set imem_addrb
     end
 
