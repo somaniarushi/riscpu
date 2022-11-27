@@ -295,6 +295,39 @@ module cpu #(
       end
     end
 
+    /*
+      Cycle counter for system. 
+    */
+    reg [31:0] cycle_count;
+    always @(posedge clk) begin 
+      if (rst) begin 
+        cycle_count <= 0;
+      end else begin 
+        cycle_count <= cycle_count + 1;
+      end
+    end 
+
+    /*
+      Instruction Counter for system. 
+      Increments every time a new pc enters the system. Does not count nops. 
+    */
+    reg [31:0] inst_count;
+    reg [31:0] last_pc_fd;
+    always @(posedge clk) begin
+      if (rst) begin 
+        inst_count <= 0;
+        last_pc_fd <= pc_fd;
+      end else begin 
+        if (pc_fd != last_pc_fd && !is_j_or_b) begin 
+          inst_count <= inst_count + 1;
+          last_pc_fd <= pc_fd;
+        end
+      end
+    end
+
+    
+
+
     assign inst_fd = (rst_reg) ? 0 : next_inst;
 
     /*
