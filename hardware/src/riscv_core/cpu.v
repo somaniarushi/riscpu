@@ -531,7 +531,7 @@ module cpu #(
     end 
 
     reg [31:0] bios_lex;
-    load_extender blexer(
+    load_extender blexer (
       .in(mem_bios_dout),
       .out(bios_lex),
       .inst(inst_mw),
@@ -539,7 +539,6 @@ module cpu #(
     );
 
     reg [31:0] dmem_lex;
-    // assign dmem_lex = mem_dmem_dout;
     load_extender lexer (
       .in(mem_dmem_dout),
       .out(dmem_lex),
@@ -548,18 +547,18 @@ module cpu #(
     );
 
     reg [31:0] uart_out;
-    // assign uart_out = uart_data_out;
     always @(posedge clk) begin
       uart_out <= uart_data_out;
     end
 
     reg [31:0] uart_lex;
-    load_extender ulexer (
-      .in(uart_out),
-      .out(uart_lex),
-      .inst(inst_mw),
-      .addr(alu_x)
-    );
+    assign uart_lex = uart_out;
+    // load_extender ulexer (
+    //   .in(uart_out),
+    //   .out(uart_lex),
+    //   .inst(inst_mw),
+    //   .addr(alu_x)
+    // );
 
     wb_selector wber (
       // Inputs

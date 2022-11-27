@@ -27,16 +27,16 @@ module load_extender(
                 if (addr[1] == 1) begin // Load first half
                     out[15:0] = in[31:16];
                     if (func3[2] == 0) begin // Not unsigned
-                        out[31:16] = in[31] ? 20'hfffff : 20'h0;
+                        out[31:16] = in[31] ? 'hfffff : 'h0;
                     end else begin // Unsigned
-                        out[31:16] = 20'h0;
+                        out[31:16] = 'h0;
                     end
                 end else begin // Load second half
                     out[15:0] = in[15:0];
                     if (func3[2] == 0) begin // Not unsigned
-                        out[31:16] = in[15] ? 20'hfffff : 20'h0;
+                        out[31:16] = in[15] ? 'hfffff : 'h0;
                     end else begin // Unsigned
-                        out[31:16] = 20'h0;
+                        out[31:16] = 'h0;
                     end
                 end
             end
@@ -48,8 +48,7 @@ module load_extender(
                     end else begin // Unsigned
                         out[31:8] = 'h0;
                     end
-                end
-                else if (addr[1:0] == 2'b10) begin // Load second half
+                end else if (addr[1:0] == 2'b10) begin // Load second half
                     out[7:0] = in[23:16];
                     if (func3[2] == 0) begin // Not unsigned
                         out[31:8] = in[23] ? 'hffffff : 'h0;                        
