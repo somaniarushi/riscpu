@@ -300,7 +300,7 @@ module cpu #(
     */
     reg [31:0] cycle_count;
     always @(posedge clk) begin 
-      if (rst) begin 
+      if (rst  || alu_x == 32'h80000018) begin 
         cycle_count <= 0;
       end else begin 
         cycle_count <= cycle_count + 1;
@@ -314,7 +314,7 @@ module cpu #(
     reg [31:0] inst_count;
     reg [31:0] last_pc_fd;
     always @(posedge clk) begin
-      if (rst) begin 
+      if (rst || alu_x == 32'h80000018) begin 
         inst_count <= 0;
         last_pc_fd <= pc_fd;
       end else begin 
@@ -479,7 +479,13 @@ module cpu #(
         // UART Receiver data 
         else if (alu_uart[3:0] == 'h4) begin 
           uart_data_out = {24'b0, uart_rx_data_out};
-        end 
+        end
+        else if (alu_uart[3:0] == 'h10) begin
+          uart_data_out = cycle_count;
+        end
+        else if (alu_uart[3:0] == 'h14) begin
+          uart_data_out = inst_count;
+        end
         // Default 
         else begin 
           uart_data_out = 32'b0;
