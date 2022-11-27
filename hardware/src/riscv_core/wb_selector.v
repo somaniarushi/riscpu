@@ -11,7 +11,7 @@ module wb_selector(
     // TODO: If bios_dmem is equal to 1000, forward the value of the UART block.
     always @(*) begin
         if (wb_sel == 2) begin
-            wb_val = pc + 4;
+            wb_val = pc;
         end else if (wb_sel == 1) begin
             // If the top four bits of the address are 0100, we are reading from BIOS. Otherwise, DMEM.
             if (mem_out_sel == 4'b0100) begin

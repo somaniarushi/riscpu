@@ -49,7 +49,7 @@ module control_logic (
         TODO: Anything missing here?
     */
     always @(*) begin
-        if (x_is_jalr || x_is_branch || x_is_jal || mw_is_branch || mw_is_jal || mw_is_jalr) begin
+        if (x_is_jalr || x_is_branch || x_is_jal) begin
             is_j_or_b = 1;
         end else begin
             is_j_or_b = 0;

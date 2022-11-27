@@ -19,3 +19,8 @@
 18. Bug fix: Sign extend immediates for store instructions.
 19. Bug fix: Add logic to check that the instruction must be load or store for UART before turning on UART handshake interface values. All echo tests passed immediately :)
 20. Bug fix: Sign extend the load from BIOS.
+21. Bug fix: Remove sign extension for UART.
+22. Bug fix: Update testbench to allow for stalling period.(300 -> 500, line 61 bios_tb)
+23. Logic Update: Instead of the input to the IMEM being `pc_in`, let the input to IMEM be `next_pc`. This will allow updating the IMEM in one cycle for jal/jalr/branches.
+24. Bug fix: Set IMEM_ENA = 1 to enable writing to the IMEM. This will make the FPGA work.
+25. Bug fix: Fix UARt indexing to be 8 bits to account for cycle/instruction counting read properly.

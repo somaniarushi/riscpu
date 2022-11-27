@@ -26,5 +26,11 @@ li x20, 2           # Set the flag register
                     # Now we check that x1 contains 500 and x2 contains 100
 
 # TODO: add more tests here
+li x10, 0
+lui x10, 0x80000
+addi x10, x10, 0x14
+lw x1, 0(x10)
+li x20, 3
+
 
 done: j done

@@ -200,8 +200,11 @@ module cpu #(
 
     // PC updater
     reg [31:0] next_pc;
-    fetch_next_pc fn(
+    fetch_next_pc # (
+        .RESET_PC(RESET_PC)
+    ) fn (
       // Inputs
+      .rst(rst),
       .pc(pc_in),
       .pc_fd(pc_fd),
       .pc_x(pc_x),
@@ -217,13 +220,13 @@ module cpu #(
 
 
     assign bios_ena = 1;
-    assign inst_sel = pc_in[30]; // Lock in inst_sel to it's corresponding value
+    assign inst_sel = next_pc[30]; // Lock in inst_sel to it's corresponding value
 
     reg [31:0] next_inst;
 
     fetch_instruction fi (
       // Inputs
-      .pc(pc_in),
+      .pc(next_pc),
       .bios_dout(bios_douta),
       .imem_dout(imem_doutb),
       .is_j_or_b(is_j_or_b),
@@ -233,6 +236,9 @@ module cpu #(
       .imem_addr(imem_addrb),
       .inst(next_inst)
     );
+
+
+    assign inst_fd = next_inst;
 
     immediate_generator immgen (
       // Inputs
@@ -274,18 +280,18 @@ module cpu #(
       // rst signal in the previous clock cycle
       // We make sure to null out inst_fd in this clock cycle
       rst_reg <= rst;
+      pc_fd <= next_pc;
 
       if (rst) begin
         pc_in <= RESET_PC;
-        pc_fd <= 0;
+        // pc_fd <= 0;
         pc_x <= 0;
         imm_x <= 0;
         inst_x <= 0;
         rs1 <= 0;
         rs2 <= 0;
       end else begin
-        pc_in <= next_pc;
-        pc_fd <= pc_in;
+        pc_in <= next_pc;  
         pc_x <= pc_fd;
         imm_x <= imm_fd;
         inst_x <= inst_fd;
@@ -326,10 +332,6 @@ module cpu #(
     end
 
     
-
-
-    assign inst_fd = (rst_reg) ? 0 : next_inst;
-
     /*
       Execute Section
       1. Given PC_X + RS1 + RS2 + IMM_X + INST_X
@@ -471,19 +473,19 @@ module cpu #(
   
     reg [31:0] uart_data_out;
     always @(*) begin 
-      if (alu_uart[31:28] == 4'b1000) begin 
+      if (alu_uart[31:28] == 4'b1000 && (inst_x[6:0] == 7'h03)) begin 
         // UART control signal 
-        if (alu_uart[3:0] == 0) begin 
+        if (alu_uart[7:0] == 'h0) begin 
           uart_data_out = {30'b0, uart_rx_data_out_valid, uart_tx_data_in_ready};
         end 
         // UART Receiver data 
-        else if (alu_uart[3:0] == 'h4) begin 
+        else if (alu_uart[7:0] == 'h4) begin 
           uart_data_out = {24'b0, uart_rx_data_out};
         end
-        else if (alu_uart[3:0] == 'h10) begin
+        else if (alu_uart[7:0] == 'h10) begin
           uart_data_out = cycle_count;
         end
-        else if (alu_uart[3:0] == 'h14) begin
+        else if (alu_uart[7:0] == 'h14) begin
           uart_data_out = inst_count;
         end
         // Default 
@@ -518,6 +520,7 @@ module cpu #(
 
 
     // Write to IMEM
+    assign imem_ena = 1;
     always @(*) begin 
       if (alu_x[31:29] == 3'b001 && pc_x[30] == 1) begin 
         imem_addra = alu_x[15:2];
@@ -565,7 +568,7 @@ module cpu #(
       .mem_bios_dout(bios_lex),
       .dmem_lex(dmem_lex),
       .uart_out(uart_lex),
-      .pc(pc_mw),
+      .pc(pc_x),
       .alu(alu_mw),
       .wb_sel(wb_sel),
       .mem_out_sel(alu_mw[31:28]),

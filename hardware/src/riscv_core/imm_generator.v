@@ -19,13 +19,13 @@ module immediate_generator (
             end
             else begin
                 imm_reg[11:0] = inst[31:20];
-                imm_reg[31:12] = inst[31]? 20'hfffff: 20'd0;
+                imm_reg[31:12] = inst[31]? 'hfffff: 'd0;
             end
         end
         // Instruction = CSR
         else if (opc == 7'h73) begin 
             imm_reg[4:0] = inst[19:15];
-            imm_reg[31:5] = 27'd0; // No sign extension needed.
+            imm_reg[31:5] = 'd0; // No sign extension needed.
         end 
         // Instruction = S-Type
         else if (opc == 7'h23) begin
@@ -40,7 +40,7 @@ module immediate_generator (
             imm_reg[10:5] = inst[30:25];
             imm_reg[11] = inst[7];
             imm_reg[12] = inst[31];
-            imm_reg[31:13] = (inst[31]) ? 19'hffffff : 'd0;
+            imm_reg[31:13] = (inst[31]) ? 'hffffff : 'd0;
         end
         // Instruction = U-Type
         else if (opc == 7'h17 || opc == 7'h37) begin

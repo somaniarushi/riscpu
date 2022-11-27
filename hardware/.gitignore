@@ -1,2 +1,6 @@
 /logs/*
 ../DVEFiles/*
+../build/*
+/build/*
+/DVEfiles/*
+/test_results/*

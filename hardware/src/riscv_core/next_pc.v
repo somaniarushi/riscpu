@@ -1,4 +1,7 @@
-module fetch_next_pc(
+module fetch_next_pc #(
+    parameter RESET_PC = 32'h4000_0000
+)(
+    input rst,
     input [1:0] pc_sel,
     input [31:0] pc,
     input [31:0] pc_fd,
@@ -20,40 +23,44 @@ module fetch_next_pc(
     wire [2:0] func3 = inst[14:12];
     reg [31:0] next;
     always @(*) begin
-        // Jump instruction: jal
-        if (pc_sel == 0) begin
-            next = alu;
-        end
-        // Branch instructions
-        else if (pc_sel == 1) begin
-            // BEQ
-            if (func3 == 3'b000) begin
-                next = (breq) ? alu : pc_fd;
+        if (rst) begin
+            next = RESET_PC;
+        end else begin
+            // Jump instruction: jal
+            if (pc_sel == 0) begin
+                next = alu;
             end
-            // BNE
-            else if (func3 == 3'b001) begin
-                next = (breq) ? pc_fd : alu;
+            // Branch instructions
+            else if (pc_sel == 1) begin
+                // BEQ
+                if (func3 == 3'b000) begin
+                    next = (breq) ? alu : pc_fd;
+                end
+                // BNE
+                else if (func3 == 3'b001) begin
+                    next = (breq) ? pc_fd : alu;
+                end
+                // BLT
+                else if (func3 == 3'b100) begin
+                    next = (brlt) ? alu : pc_fd;
+                end
+                // BGE
+                else if (func3 == 3'b101) begin
+                    next = (brlt) ? pc_fd : alu;
+                end
+                // BLTU
+                else if (func3 == 3'b110) begin
+                    next = (brlt) ? alu : pc_fd; // TODO: Control logic figures it out for us.
+                end
+                // BGEU
+                else begin
+                    next = (brlt) ? pc_fd : alu;
+                end
             end
-            // BLT
-            else if (func3 == 3'b100) begin
-                next = (brlt) ? alu : pc_fd;
-            end
-            // BGE
-            else if (func3 == 3'b101) begin
-                next = (brlt) ? pc_fd : alu;
-            end
-            // BLTU
-            else if (func3 == 3'b110) begin
-                next = (brlt) ? alu : pc_fd; // TODO: Control logic figures it out for us.
-            end
-            // BGEU
+            // Simple next instruction
             else begin
-                next = (brlt) ? pc_fd : alu;
+                next = pc + 4;
             end
-        end
-        // Simple next instruction
-        else begin
-            next = pc + 4;
         end
     end
 
