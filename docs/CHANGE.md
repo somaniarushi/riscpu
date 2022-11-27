@@ -17,3 +17,5 @@
 16. Bug Fix: Removed logic from loading FD rs1/rs2 values into X stage branch rs1 and rs2. Was used as means to write to rd in CSR instructions, but per spec, rd in CSR instructions will always be x0 and thus never written to.
 17. Bug fix: For SHAMT instructions, only extract lowermost 5 bits from the immediate.
 18. Bug fix: Sign extend immediates for store instructions.
+19. Bug fix: Add logic to check that the instruction must be load or store for UART before turning on UART handshake interface values. All echo tests passed immediately :)
+20. Bug fix: Sign extend the load from BIOS.

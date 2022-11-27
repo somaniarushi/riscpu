@@ -54,7 +54,7 @@ module immediate_generator (
             imm_reg[11] = inst[20];
             imm_reg[19:12] = inst[19:12];
             imm_reg[20] = inst[31];
-            imm_reg[31:21] = 'd0;
+            imm_reg[31:21] = (inst[31]) ? 'hfffff : 'h0;
         end
         // Instruction = R-Type
         else begin

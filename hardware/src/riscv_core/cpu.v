@@ -391,8 +391,6 @@ module cpu #(
         - Writeback in DECODE stage the value based on RegWEn
     */
 
-    // TODO: DMEM is also FIFO -> handle
-
     reg [31:0] mem_bios_dout;
     reg [31:0] mem_dmem_dout;
 
@@ -411,7 +409,7 @@ module cpu #(
       .mask(wr_mask),
       .out(data_in)
     );
-    // TODO: set guards on writing to dmem based on the top four bits
+
     // Reading from DMEM
     always @(*) begin
       if (alu_x[31:30] == 2'b00 && alu_x[28] == 1) begin
@@ -436,7 +434,7 @@ module cpu #(
     // Read from UART
 
     wire [31:0] alu_uart;
-    assign alu_uart = alu_mw;
+    assign alu_uart = alu_x;
   
     reg [31:0] uart_data_out;
     always @(*) begin 
@@ -475,9 +473,9 @@ module cpu #(
       end 
     end 
 
-    // Assign control signals
-    assign uart_rx_data_out_ready = (alu_x == 32'h80000004);
-    assign uart_tx_data_in_valid = (alu_x == 32'h80000008);
+    // Assign control signals, check instruction is actually a UART command
+    assign uart_rx_data_out_ready = (alu_x == 32'h80000004) && (inst_x[6:0] == 7'h03);
+    assign uart_tx_data_in_valid = (alu_x == 32'h80000008) && (inst_x[6:0] == 7'h23);
 
 
     // Write to IMEM
@@ -493,6 +491,14 @@ module cpu #(
       end 
     end 
 
+    reg [31:0] bios_lex;
+    load_extender blexer(
+      .in(mem_bios_dout),
+      .out(bios_lex),
+      .inst(inst_mw),
+      .addr(alu_mw)
+    );
+
     reg [31:0] dmem_lex;
     // assign dmem_lex = mem_dmem_dout;
     load_extender lexer (
@@ -502,15 +508,20 @@ module cpu #(
       .addr(alu_mw)
     );
 
+    reg [31:0] uart_out;
+    always @(posedge clk) begin
+      uart_out <= uart_data_out;
+    end
+
     wb_selector wber (
       // Inputs
-      .mem_bios_dout(mem_bios_dout),
+      .mem_bios_dout(bios_lex),
       .dmem_lex(dmem_lex),
-      .uart_out(uart_data_out),
+      .uart_out(uart_out),
       .pc(pc_mw),
       .alu(alu_mw),
       .wb_sel(wb_sel),
-      .mem_out_sel(alu_x[31:28]),
+      .mem_out_sel(alu_mw[31:28]),
       // Outputs
       .wb_val(wb_val)
     );
