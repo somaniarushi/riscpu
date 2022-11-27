@@ -4,3 +4,12 @@
 /build/*
 /DVEfiles/*
 /test_results/*
+/sim/*.tb
+/sim/*.log
+/sim/*.vpd
+/sim/ucli.key
+/sim/isa/*
+/sim/csrc/*
+/sim/*.daidir/*
+/sim/c_tests/*
+/sim/nfs*
