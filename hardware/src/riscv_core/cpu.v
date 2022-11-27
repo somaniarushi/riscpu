@@ -509,15 +509,24 @@ module cpu #(
     );
 
     reg [31:0] uart_out;
+    // assign uart_out = uart_data_out;
     always @(posedge clk) begin
       uart_out <= uart_data_out;
     end
+
+    reg [31:0] uart_lex;
+    load_extender ulexer (
+      .in(uart_out),
+      .out(uart_lex),
+      .inst(inst_mw),
+      .addr(alu_x)
+    );
 
     wb_selector wber (
       // Inputs
       .mem_bios_dout(bios_lex),
       .dmem_lex(dmem_lex),
-      .uart_out(uart_out),
+      .uart_out(uart_lex),
       .pc(pc_mw),
       .alu(alu_mw),
       .wb_sel(wb_sel),
