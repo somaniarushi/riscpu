@@ -8,9 +8,8 @@ module fetch_next_pc #(
     input [31:0] pc_x,
     input [31:0] imm,
     input [31:0] alu,
-    input brlt,
-    input breq,
     input [31:0] inst,
+    input br_taken,
     output [31:0] next_pc
 );
     /*
@@ -32,30 +31,7 @@ module fetch_next_pc #(
             end
             // Branch instructions
             else if (pc_sel == 1) begin
-                // BEQ
-                if (func3 == 3'b000) begin
-                    next = (breq) ? alu : pc_fd;
-                end
-                // BNE
-                else if (func3 == 3'b001) begin
-                    next = (breq) ? pc_fd : alu;
-                end
-                // BLT
-                else if (func3 == 3'b100) begin
-                    next = (brlt) ? alu : pc_fd;
-                end
-                // BGE
-                else if (func3 == 3'b101) begin
-                    next = (brlt) ? pc_fd : alu;
-                end
-                // BLTU
-                else if (func3 == 3'b110) begin
-                    next = (brlt) ? alu : pc_fd; // TODO: Control logic figures it out for us.
-                end
-                // BGEU
-                else begin
-                    next = (brlt) ? pc_fd : alu;
-                end
+                next = (br_taken) ? alu : pc + 4;
             end
             // Simple next instruction
             else begin

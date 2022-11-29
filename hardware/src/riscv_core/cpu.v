@@ -144,7 +144,7 @@ module cpu #(
     // Selecting inst from BIOS or IMEM
     reg inst_sel;
     // Selection whether to input a nop or not
-    reg is_j_or_b;
+    reg is_j;
     // Selecting whether to forward from WB to Decode
     reg wb2d_a, wb2d_b;
     // Selecting values for branch comparison
@@ -159,6 +159,8 @@ module cpu #(
     reg [1:0] wb_sel;
     // Select reg wr en
     reg reg_wen;
+    // Is equal to 1 when the branch is set to taken.
+    reg br_taken;
 
     control_logic cl (
       // Inputs
@@ -170,7 +172,7 @@ module cpu #(
       .breq(breq),
       // Outputs
       .pc_sel(pc_sel),
-      .is_j_or_b(is_j_or_b),
+      .is_j(is_j),
       .wb2d_a(wb2d_a),
       .wb2d_b(wb2d_b),
       .brun(brun),
@@ -179,7 +181,8 @@ module cpu #(
       .bsel(bsel),
       .alu_sel(alu_sel),
       .mem_rw(mem_rw),
-      .wb_sel(wb_sel)
+      .wb_sel(wb_sel),
+      .br_taken(br_taken)
     );
 
     /* Fetch and Decode Section
@@ -211,9 +214,8 @@ module cpu #(
       .imm(imm_x),
       .alu(alu_x),
       .pc_sel(pc_sel),
-      .brlt(brlt),
-      .breq(breq),
       .inst(inst_x),
+      .br_taken(br_taken),
       // Outputs
       .next_pc(next_pc)
     );
@@ -229,7 +231,7 @@ module cpu #(
       .pc(next_pc),
       .bios_dout(bios_douta),
       .imem_dout(imem_doutb),
-      .is_j_or_b(is_j_or_b),
+      .is_j(is_j),
       .inst_sel(inst_sel),
       // Outputs
       .bios_addr(bios_addra),
@@ -294,7 +296,7 @@ module cpu #(
         pc_in <= next_pc;  
         pc_x <= pc_fd;
         imm_x <= imm_fd;
-        inst_x <= inst_fd;
+        inst_x <= (br_taken) ? 32'h13 : inst_fd;
         // CSR Instructions
         rs1 <= rs1_fd;
         rs2 <= rs2_fd;
@@ -324,7 +326,7 @@ module cpu #(
         inst_count <= 0;
         last_pc_fd <= pc_fd;
       end else begin 
-        if (pc_fd != last_pc_fd && !is_j_or_b) begin 
+        if (pc_fd != last_pc_fd && !is_j) begin 
           inst_count <= inst_count + 1;
           last_pc_fd <= pc_fd;
         end

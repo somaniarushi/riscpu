@@ -6,7 +6,7 @@ module control_logic (
     input brlt,
     input breq,
     output reg [1:0] pc_sel,
-    output reg is_j_or_b,
+    output reg is_j,
     output reg wb2d_a,
     output reg wb2d_b,
     output reg brun,
@@ -15,7 +15,8 @@ module control_logic (
     output reg [1:0] bsel,
     output reg [3:0] alu_sel,
     output reg mem_rw,
-    output reg [1:0] wb_sel
+    output reg [1:0] wb_sel,
+    output reg br_taken
 );
 
     // Setting PCSel
@@ -49,10 +50,10 @@ module control_logic (
         TODO: Anything missing here?
     */
     always @(*) begin
-        if (x_is_jalr || x_is_branch || x_is_jal) begin
-            is_j_or_b = 1;
+        if (x_is_jalr || x_is_jal) begin
+            is_j = 1;
         end else begin
-            is_j_or_b = 0;
+            is_j = 0;
         end
     end
 
@@ -93,6 +94,42 @@ module control_logic (
             brun = 1;
         end else begin
             brun = 0;
+        end
+    end
+
+    // Set br_taken
+    /* */
+    wire [2:0] x_func3 = inst_x[14:12];
+    wire [6:0] x_func7 = inst_x[31:25];
+
+    always @(*) begin
+        if (x_is_branch) begin
+            // BEQ
+            if (x_func3 == 3'b000) begin
+                br_taken = breq;
+            end
+            // BNE
+            else if (x_func3 == 3'b001) begin
+                br_taken = !breq;
+            end
+            // BLT
+            else if (x_func3 == 3'b100) begin
+                br_taken = brlt;
+            end
+            // BGE
+            else if (x_func3 == 3'b101) begin
+                br_taken = !brlt;
+            end
+            // BLTU
+            else if (x_func3 == 3'b110) begin
+                br_taken = brlt;
+            end
+            // BGEU
+            else begin
+                br_taken = !brlt;
+            end
+        end else begin
+            br_taken = 0;
         end
     end
 
@@ -146,9 +183,6 @@ module control_logic (
             bsel[0] = 0;
         end
     end
-
-    wire [2:0] x_func3 = inst_x[14:12];
-    wire [6:0] x_func7 = inst_x[31:25];
 
     // Setting ALUSel
     /*

@@ -1,6 +1,6 @@
 module fetch_instruction(
     input [31:0] pc,
-    input is_j_or_b,
+    input is_j,
     input inst_sel,
     input [31:0] bios_dout,
     input [31:0] imem_dout,
@@ -25,5 +25,5 @@ module fetch_instruction(
     end
 
     // Inst Sel + Jump logic
-    assign inst = (is_j_or_b) ? 32'h13 : ((inst_sel) ? bios_dout : imem_dout);
+    assign inst = (is_j) ? 32'h13 : ((inst_sel) ? bios_dout : imem_dout);
 endmodule
