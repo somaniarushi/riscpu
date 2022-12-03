@@ -1,10 +1,12 @@
 module control_logic (
     input clk,
+    input bp_enable,
     input [31:0] inst_fd,
     input [31:0] inst_x,
     input [31:0] inst_mw,
     input brlt,
     input breq,
+    input pred_taken,
     output reg [1:0] pc_sel,
     output reg is_j,
     output reg wb2d_a,
@@ -32,12 +34,20 @@ module control_logic (
     assign fd_is_branch = inst_fd[6:0] == 7'h63;
 
     always @(negedge clk) begin
-        if (x_is_branch) begin
+        if (bp_enable && x_is_branch && fd_is_branch) begin
+            // If mispredict, x wins. If not, fd wins.
+            if (br_taken != pred_taken) begin
+                pc_sel = 1;
+            end else begin
+                pc_sel = 3;
+            end
+        end
+        else if (x_is_branch) begin
             pc_sel = 1;
+        end else if (fd_is_branch) begin
+            pc_sel = 3;  // Perform branch prediction
         end else if (x_is_jal || x_is_jalr) begin
             pc_sel = 0;
-        end else if (fd_is_branch) begin
-            pc_sel = 3; // Perform branch prediction
         end else begin
             pc_sel = 2;
         end

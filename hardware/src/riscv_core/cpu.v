@@ -164,6 +164,11 @@ module cpu #(
     // Predicted value for branch prediction
     reg br_pred_taken;
 
+    reg pred_taken;
+    always @(posedge clk) begin
+      pred_taken <= br_pred_taken;
+    end
+
     control_logic cl (
       // Inputs
       .clk(clk),
@@ -172,6 +177,8 @@ module cpu #(
       .inst_mw(inst_mw),
       .brlt(brlt),
       .breq(breq),
+      .pred_taken(pred_taken),
+      .bp_enable(bp_enable),
       // Outputs
       .pc_sel(pc_sel),
       .is_j(is_j),
@@ -238,11 +245,11 @@ module cpu #(
       .clk(clk),
       .reset(rst),
       .pc_guess(pc_fd),
-      .is_br_guess(inst_fd_cache[6:0] == 7'h63),
+      .is_br_guess(bp_enable && inst_fd_cache[6:0] == 7'h63),
 
       .pc_check(pc_x),
-      .is_br_check(inst_x[6:0] == 7'h63),
-      .br_taken_check(br_taken),
+      .is_br_check(bp_enable && inst_x[6:0] == 7'h63),
+      .br_taken_check(br_taken), 
 
       .br_pred_taken(br_pred_taken)
     );
@@ -300,7 +307,6 @@ module cpu #(
     assign wd = wb_val;
 
 
-    reg pred_taken;
     reg [31:0] rs1, rs2;
     reg rst_reg;
     // Clocking block
@@ -310,7 +316,6 @@ module cpu #(
       // We make sure to null out inst_fd in this clock cycle
       rst_reg <= rst;
       pc_fd <= next_pc;
-      pred_taken <= br_pred_taken;
 
       if (rst) begin
         pc_in <= RESET_PC;
@@ -355,15 +360,49 @@ module cpu #(
       Increments every time a new pc enters the system. Does not count nops.
     */
     reg [31:0] inst_count;
-    reg [31:0] last_pc_fd;
     always @(posedge clk) begin
       if (rst || alu_x == 32'h80000018) begin
         inst_count <= 0;
-        last_pc_fd <= pc_fd;
       end else begin
-        if (pc_fd != last_pc_fd && !is_j) begin
-          inst_count <= inst_count + 1;
-          last_pc_fd <= pc_fd;
+        if (!is_j) begin
+          if (bp_enable) begin
+            if (pred_taken == br_taken) begin
+              inst_count <= inst_count + 1;
+            end
+          end
+          else begin
+            if (!br_taken) begin
+              inst_count <= inst_count + 1;
+            end
+          end
+        end
+      end
+    end
+
+    reg [31:0] branch_counter;
+    always @(posedge clk) begin
+      if (rst || alu_x == 32'h80000018) begin
+        branch_counter <= 0;
+      end else begin
+        if (inst_mw[6:0] == 7'h63) begin
+          branch_counter <= branch_counter + 1;
+        end
+      end
+    end
+
+    reg [31:0] branch_correct;
+    always @(posedge clk) begin
+      if (rst || alu_x == 32'h80000018) begin
+        branch_correct <= 0;
+      end else begin
+        if (bp_enable) begin
+          if (inst_x[6:0] == 7'h63 && (pred_taken == br_taken)) begin
+            branch_correct <= branch_correct + 1;
+          end
+        end else begin
+          if (inst_x[6:0] == 7'h63 && !br_taken) begin
+            branch_correct <= branch_correct + 1;
+          end
         end
       end
     end
@@ -524,6 +563,12 @@ module cpu #(
         end
         else if (alu_uart[7:0] == 'h14) begin
           uart_data_out = inst_count;
+        end
+        else if (alu_uart[7:0] == 'h1c) begin
+          uart_data_out = branch_counter;
+        end
+        else if (alu_uart[7:0] == 'h20) begin
+          uart_data_out = branch_correct;
         end
         // Default
         else begin
