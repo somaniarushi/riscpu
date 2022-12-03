@@ -24,3 +24,5 @@
 23. Logic Update: Instead of the input to the IMEM being `pc_in`, let the input to IMEM be `next_pc`. This will allow updating the IMEM in one cycle for jal/jalr/branches.
 24. Bug fix: Set IMEM_ENA = 1 to enable writing to the IMEM. This will make the FPGA work.
 25. Bug fix: Fix UARt indexing to be 8 bits to account for cycle/instruction counting read properly.
+26. change `pc_sel` to be set on the negative clock edge to account for COMBINATIONAL LOOP alert. Equivalently, change `is_br_guess` to simply `bp_enable`.
+27. 
