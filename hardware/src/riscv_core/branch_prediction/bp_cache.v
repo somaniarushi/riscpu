@@ -29,11 +29,54 @@ module bp_cache #(
     input we
 
 );
+    // Size of data = tag bits + data + valid bit
+    localparam LINES_BIT_SIZE = $clog2(LINES);
+    localparam TAG_SIZE = AWIDTH - LINES_BIT_SIZE;
+    localparam CACHE_SIZE = TAG_SIZE + 1 + DWIDTH;
 
-    // TODO: Your code
-    assign dout0 = '0;
-    assign dout1 = '0;
-    assign hit0  = 1'b0;
-    assign hit1  = 1'b0;
+    reg [CACHE_SIZE-1:0] cache [LINES-1:0];
+
+    // Read port 1
+    wire [LINES_BIT_SIZE-1:0] ra0_offset = ra0[LINES_BIT_SIZE-1:0];
+    wire [CACHE_SIZE-1:0] cache_entry0 = cache[ra0_offset];
+    wire cache_valid0 = (cache_entry0[DWIDTH] == 1'b1);
+
+    wire [AWIDTH-LINES_BIT_SIZE-1:0] ra0_tag = ra0[AWIDTH-1:LINES_BIT_SIZE];
+    wire [AWIDTH-LINES_BIT_SIZE-1:0] cache_tag0 = cache_entry0[CACHE_SIZE-1:DWIDTH+1];
+    wire cache_tag_match0 = (ra0_tag == cache_tag0);
+
+    assign hit0 = cache_valid0 && cache_tag_match0;
+    assign dout0 = cache_entry0[DWIDTH-1:0];
+
+    // Read port 2
+    wire [LINES_BIT_SIZE-1:0] ra1_offset = ra1[LINES_BIT_SIZE-1:0];
+    wire [CACHE_SIZE-1:0] cache_entry1 = cache[ra1_offset];
+    wire cache_valid1 = (cache_entry1[DWIDTH] == 1'b1);
+
+    wire [AWIDTH-LINES_BIT_SIZE-1:0] ra1_tag = ra1[AWIDTH-1:LINES_BIT_SIZE];
+    wire [AWIDTH-LINES_BIT_SIZE-1:0] cache_tag1 = cache_entry1[CACHE_SIZE-1:DWIDTH+1];
+    wire cache_tag_match1 = (ra1_tag == cache_tag1);
+
+    assign hit1 = cache_valid1 && cache_tag_match1;
+    assign dout1 = cache_entry1[DWIDTH-1:0];
+
+    // Write port
+    wire [LINES_BIT_SIZE-1:0] wa_offset = wa[LINES_BIT_SIZE-1:0];
+    wire [AWIDTH-LINES_BIT_SIZE-1:0] wa_tag = wa[AWIDTH-1:LINES_BIT_SIZE];
+    integer i;
+    always @(posedge clk) begin
+        if (reset) begin
+            for (i = 0; i < LINES; i = i + 1) begin
+                cache[i] <= 0;
+            end
+        end
+        else begin
+            if (we) begin
+                cache[wa_offset][DWIDTH-1:0] <= din;
+                cache[wa_offset][DWIDTH] <= 1;
+                cache[wa_offset][CACHE_SIZE-1:DWIDTH+1] <= wa_tag;
+            end
+        end
+    end
 
 endmodule

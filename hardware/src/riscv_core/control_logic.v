@@ -25,19 +25,19 @@ module control_logic (
         2. If the branch of inst-X is taken or inst-X is JALR, then jump to ALU value -> ALU, PC Sel = 1
         3. If none of the above 2 are true, go to PC + 4, PC Sel = 2
     */
-    wire x_is_jal, x_is_jalr, x_is_branch, mw_is_branch, mw_is_jal, mw_is_jalr;
+    wire x_is_jal, x_is_jalr, x_is_branch, mw_is_branch, mw_is_jal, mw_is_jalr, fd_is_branch;
     assign x_is_jal = inst_x[6:0] == 7'h6F;
-    assign mw_is_jal = inst_mw[6:0] == 7'h6F;
     assign x_is_jalr = inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0;
-    assign mw_is_jalr = inst_mw[6:0] == 7'h67 && inst_mw[14:12] == 3'h0;
     assign x_is_branch = inst_x[6:0] == 7'h63;
-    assign mw_is_branch = inst_mw[6:0] == 7'h63;
+    assign fd_is_branch = inst_fd[6:0] == 7'h63;
 
     always @(*) begin
         if (x_is_branch) begin
             pc_sel = 1;
         end else if (x_is_jal || x_is_jalr) begin
             pc_sel = 0;
+        end else if (fd_is_branch) begin
+            pc_sel = 3; // Perform branch prediction
         end else begin
             pc_sel = 2;
         end

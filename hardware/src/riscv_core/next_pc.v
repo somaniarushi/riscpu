@@ -5,11 +5,10 @@ module fetch_next_pc #(
     input [1:0] pc_sel,
     input [31:0] pc,
     input [31:0] pc_fd,
-    input [31:0] pc_x,
-    input [31:0] imm,
     input [31:0] alu,
-    input [31:0] inst,
     input br_taken,
+    input br_pred_taken,
+    input bp_enable,
     output [31:0] next_pc
 );
     /*
@@ -19,7 +18,6 @@ module fetch_next_pc #(
     2 -> Next = PC + 4
     */
 
-    wire [2:0] func3 = inst[14:12];
     reg [31:0] next;
     always @(*) begin
         if (rst) begin
@@ -29,9 +27,17 @@ module fetch_next_pc #(
             if (pc_sel == 0) begin
                 next = alu;
             end
-            // Branch instructions
+            // Branch instructions: result
             else if (pc_sel == 1) begin
-                next = (br_taken) ? alu : pc + 4;
+                next = (br_taken) ? alu : pc_fd + 4;
+            end
+            // Branch instruction: prediction
+            else if (pc_sel == 3) begin
+                if (bp_enable) begin
+                    next = (br_pred_taken) ? pc : pc + 4;
+                end else begin
+                    next = pc + 4;
+                end
             end
             // Simple next instruction
             else begin
