@@ -161,6 +161,8 @@ module cpu #(
     reg reg_wen;
     // Is equal to 1 when the branch is set to taken.
     reg br_taken;
+    // Predicted value for branch prediction
+    reg br_pred_taken;
 
     control_logic cl (
       // Inputs
@@ -210,16 +212,27 @@ module cpu #(
       .rst(rst),
       .pc(pc_in),
       .pc_fd(pc_fd),
-      .pc_x(pc_x),
-      .imm(imm_x),
       .alu(alu_x),
       .pc_sel(pc_sel),
-      .inst(inst_x),
+      .bp_enable(bp_enable),
       .br_taken(br_taken),
+      .br_pred_taken(br_pred_taken),
       // Outputs
       .next_pc(next_pc)
     );
 
+    branch_predictor bpred (
+      .clk(clk),
+      .reset(rst),
+      .pc_guess(pc_fd),
+      .is_br_guess(inst_fd[6:0] == 7'h63),
+
+      .pc_check(pc_x),
+      .is_br_check(inst_x[6:0] == 7'h63),
+      .br_taken_check(br_taken),
+
+      .br_pred_taken(br_pred_taken)
+    );
 
     assign bios_ena = 1;
     assign inst_sel = next_pc[30]; // Lock in inst_sel to it's corresponding value
@@ -268,11 +281,13 @@ module cpu #(
       .rs1(rs1_fd),
       .rs2(rs2_fd)
     );
- 
+
     // TODO: Writeback TODO
     assign we = reg_wen;
     assign wa = inst_mw[11:7];
     assign wd = wb_val;
+
+    wire [31:0] pc_in_next = pc_in + imm_fd;
 
     reg [31:0] rs1, rs2;
     reg rst_reg;
@@ -286,14 +301,13 @@ module cpu #(
 
       if (rst) begin
         pc_in <= RESET_PC;
-        // pc_fd <= 0;
         pc_x <= 0;
         imm_x <= 0;
         inst_x <= 0;
         rs1 <= 0;
         rs2 <= 0;
       end else begin
-        pc_in <= next_pc;  
+        pc_in <= (bp_enable && inst_fd[6:0] == 7'h63 && br_pred_taken) ? pc_in_next : next_pc;
         pc_x <= pc_fd;
         imm_x <= imm_fd;
         inst_x <= (br_taken) ? 32'h13 : inst_fd;
@@ -304,36 +318,36 @@ module cpu #(
     end
 
     /*
-      Cycle counter for system. 
+      Cycle counter for system.
     */
     reg [31:0] cycle_count;
-    always @(posedge clk) begin 
-      if (rst  || alu_x == 32'h80000018) begin 
+    always @(posedge clk) begin
+      if (rst  || alu_x == 32'h80000018) begin
         cycle_count <= 0;
-      end else begin 
+      end else begin
         cycle_count <= cycle_count + 1;
       end
-    end 
+    end
 
     /*
-      Instruction Counter for system. 
-      Increments every time a new pc enters the system. Does not count nops. 
+      Instruction Counter for system.
+      Increments every time a new pc enters the system. Does not count nops.
     */
     reg [31:0] inst_count;
     reg [31:0] last_pc_fd;
     always @(posedge clk) begin
-      if (rst || alu_x == 32'h80000018) begin 
+      if (rst || alu_x == 32'h80000018) begin
         inst_count <= 0;
         last_pc_fd <= pc_fd;
-      end else begin 
-        if (pc_fd != last_pc_fd && !is_j) begin 
+      end else begin
+        if (pc_fd != last_pc_fd && !is_j) begin
           inst_count <= inst_count + 1;
           last_pc_fd <= pc_fd;
         end
       end
     end
 
-    
+
     /*
       Execute Section
       1. Given PC_X + RS1 + RS2 + IMM_X + INST_X
@@ -347,20 +361,20 @@ module cpu #(
     reg [31:0] rs1_in, rs2_in;
 
 
-    always @(posedge clk) begin 
+    always @(posedge clk) begin
       if (rst) begin
         tohost_csr <= 0;
       end else begin
         // I type CSR
-        if (inst_x[6:0] == 7'h73) begin 
-          if (inst_x[14] == 1) begin 
+        if (inst_x[6:0] == 7'h73) begin
+          if (inst_x[14] == 1) begin
               tohost_csr <= imm_x;
-          end else begin 
+          end else begin
               tohost_csr <= rs1_br;
-          end 
-        end 
+          end
+        end
       end
-    end 
+    end
 
     ex_forwarding forwarder (
       // Inputs
@@ -438,7 +452,7 @@ module cpu #(
       .addr(alu_x),
       .mask(wr_mask)
     );
-    
+
 
     reg [31:0] data_in;
     data_in_gen datagen (
@@ -472,16 +486,16 @@ module cpu #(
 
     wire [31:0] alu_uart;
     assign alu_uart = alu_x;
-  
+
     reg [31:0] uart_data_out;
-    always @(*) begin 
-      if (alu_uart[31:28] == 4'b1000 && (inst_x[6:0] == 7'h03)) begin 
-        // UART control signal 
-        if (alu_uart[7:0] == 'h0) begin 
+    always @(*) begin
+      if (alu_uart[31:28] == 4'b1000 && (inst_x[6:0] == 7'h03)) begin
+        // UART control signal
+        if (alu_uart[7:0] == 'h0) begin
           uart_data_out = {30'b0, uart_rx_data_out_valid, uart_tx_data_in_ready};
-        end 
-        // UART Receiver data 
-        else if (alu_uart[7:0] == 'h4) begin 
+        end
+        // UART Receiver data
+        else if (alu_uart[7:0] == 'h4) begin
           uart_data_out = {24'b0, uart_rx_data_out};
         end
         else if (alu_uart[7:0] == 'h10) begin
@@ -490,31 +504,31 @@ module cpu #(
         else if (alu_uart[7:0] == 'h14) begin
           uart_data_out = inst_count;
         end
-        // Default 
-        else begin 
+        // Default
+        else begin
           uart_data_out = 32'b0;
-        end 
-      end 
-      // Default 
-      else begin 
+        end
+      end
+      // Default
+      else begin
         uart_data_out = 32'b0;
-      end 
-    end 
+      end
+    end
 
     // Write to UART
-    always @(*) begin 
-      if (alu_uart[31:28] == 4'b1000) begin 
-        if (alu_uart[3:0] == 'h8) begin 
+    always @(*) begin
+      if (alu_uart[31:28] == 4'b1000) begin
+        if (alu_uart[3:0] == 'h8) begin
           uart_tx_data_in = data_in[7:0];
-        end 
-        else begin 
+        end
+        else begin
           uart_tx_data_in = 8'h0;
-        end 
-      end 
-      else begin 
+        end
+      end
+      else begin
           uart_tx_data_in = 8'b0;
-      end 
-    end 
+      end
+    end
 
     // Assign control signals, check instruction is actually a UART command
     assign uart_rx_data_out_ready = (alu_x == 32'h80000004) && (inst_x[6:0] == 7'h03);
@@ -523,17 +537,17 @@ module cpu #(
 
     // Write to IMEM
     assign imem_ena = 1;
-    always @(*) begin 
-      if (alu_x[31:29] == 3'b001 && pc_x[30] == 1) begin 
+    always @(*) begin
+      if (alu_x[31:29] == 3'b001 && pc_x[30] == 1) begin
         imem_addra = alu_x[15:2];
         imem_dina = data_in;
         imem_wea = wr_mask;
-      end else begin 
+      end else begin
         imem_addra = 0;
         imem_dina = 0;
         imem_wea = 0;
-      end 
-    end 
+      end
+    end
 
     reg [31:0] bios_lex;
     load_extender blexer (
