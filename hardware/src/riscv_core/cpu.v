@@ -205,13 +205,16 @@ module cpu #(
 
     // PC updater
     reg [31:0] next_pc;
+    wire [31:0] pc_in_next = pc_in + imm_fd;
     fetch_next_pc # (
         .RESET_PC(RESET_PC)
     ) fn (
       // Inputs
+      .clk(clk),
       .rst(rst),
       .pc(pc_in),
       .pc_fd(pc_fd),
+      .next_pc_in(pc_in_next),
       .alu(alu_x),
       .pc_sel(pc_sel),
       .bp_enable(bp_enable),
@@ -287,7 +290,9 @@ module cpu #(
     assign wa = inst_mw[11:7];
     assign wd = wb_val;
 
-    wire [31:0] pc_in_next = pc_in + imm_fd;
+
+    reg pred_cache;
+    
 
     reg [31:0] rs1, rs2;
     reg rst_reg;
@@ -298,6 +303,7 @@ module cpu #(
       // We make sure to null out inst_fd in this clock cycle
       rst_reg <= rst;
       pc_fd <= next_pc;
+      pred_cache <= br_pred_taken;
 
       if (rst) begin
         pc_in <= RESET_PC;
@@ -307,10 +313,14 @@ module cpu #(
         rs1 <= 0;
         rs2 <= 0;
       end else begin
-        pc_in <= (bp_enable && inst_fd[6:0] == 7'h63 && br_pred_taken) ? pc_in_next : next_pc;
+        pc_in <= next_pc;
         pc_x <= pc_fd;
         imm_x <= imm_fd;
-        inst_x <= (br_taken) ? 32'h13 : inst_fd;
+        if (bp_enable) begin
+          inst_x <= (br_taken ^ pred_cache) ? 32'h13 : inst_fd;
+        end else begin
+          inst_x <= (br_taken) ? 32'h13 : inst_fd;
+        end
         // CSR Instructions
         rs1 <= rs1_fd;
         rs2 <= rs2_fd;
