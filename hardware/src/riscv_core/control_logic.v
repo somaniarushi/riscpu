@@ -31,7 +31,7 @@ module control_logic (
     assign x_is_branch = inst_x[6:0] == 7'h63;
     assign fd_is_branch = inst_fd[6:0] == 7'h63;
 
-    always @(*) begin
+    always @(negedge clk) begin
         if (x_is_branch) begin
             pc_sel = 1;
         end else if (x_is_jal || x_is_jalr) begin
@@ -47,7 +47,6 @@ module control_logic (
     /*
         1. If inst-X is a JALR instruction, set to true.
         2. If inst-X is a branch instruction, set to true.
-        TODO: Anything missing here?
     */
     always @(*) begin
         if (x_is_jalr || x_is_jal) begin

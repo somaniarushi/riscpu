@@ -205,7 +205,12 @@ module cpu #(
 
     // PC updater
     reg [31:0] next_pc;
-    wire [31:0] pc_in_next = pc_in + imm_fd;
+    reg [31:0] pc_in_next;
+    
+    always @(negedge clk) begin
+      pc_in_next <= pc_in + imm_fd;
+    end 
+    
     fetch_next_pc # (
         .RESET_PC(RESET_PC)
     ) fn (
@@ -224,11 +229,16 @@ module cpu #(
       .next_pc(next_pc)
     );
 
+    reg [31:0] inst_fd_cache;
+    always @(negedge clk) begin
+      inst_fd_cache <= inst_fd;
+    end
+
     branch_predictor bpred (
       .clk(clk),
       .reset(rst),
       .pc_guess(pc_fd),
-      .is_br_guess(inst_fd[6:0] == 7'h63),
+      .is_br_guess(inst_fd_cache[6:0] == 7'h63),
 
       .pc_check(pc_x),
       .is_br_check(inst_x[6:0] == 7'h63),
@@ -285,15 +295,12 @@ module cpu #(
       .rs2(rs2_fd)
     );
 
-    // TODO: Writeback TODO
     assign we = reg_wen;
     assign wa = inst_mw[11:7];
     assign wd = wb_val;
 
 
-    reg pred_cache;
-    
-
+    reg pred_taken;
     reg [31:0] rs1, rs2;
     reg rst_reg;
     // Clocking block
@@ -303,7 +310,7 @@ module cpu #(
       // We make sure to null out inst_fd in this clock cycle
       rst_reg <= rst;
       pc_fd <= next_pc;
-      pred_cache <= br_pred_taken;
+      pred_taken <= br_pred_taken;
 
       if (rst) begin
         pc_in <= RESET_PC;
@@ -316,10 +323,14 @@ module cpu #(
         pc_in <= next_pc;
         pc_x <= pc_fd;
         imm_x <= imm_fd;
-        if (bp_enable) begin
-          inst_x <= (br_taken ^ pred_cache) ? 32'h13 : inst_fd;
+        if (inst_x[6:0] == 7'h63) begin
+          if (bp_enable) begin
+            inst_x <= (br_taken ^ pred_taken) ? 32'h13 : inst_fd;
+          end else begin
+            inst_x <= (br_taken) ? 32'h13 : inst_fd;
+          end
         end else begin
-          inst_x <= (br_taken) ? 32'h13 : inst_fd;
+          inst_x <= inst_fd;
         end
         // CSR Instructions
         rs1 <= rs1_fd;
