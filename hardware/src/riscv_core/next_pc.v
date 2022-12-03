@@ -3,7 +3,7 @@ module fetch_next_pc #(
 )(
     input clk,
     input rst,
-    input [1:0] pc_sel,
+    input [2:0] pc_sel,
     input [31:0] pc,
     input [31:0] pc_fd,
     input [31:0] next_pc_in,
@@ -54,6 +54,9 @@ module fetch_next_pc #(
                 end else begin
                     next = pc + 4;
                 end
+            end
+            else if (pc_sel == 4) begin
+                next = next_pc_in;
             end
             // Simple next instruction
             else begin

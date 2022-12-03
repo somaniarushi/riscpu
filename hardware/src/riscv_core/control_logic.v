@@ -7,7 +7,7 @@ module control_logic (
     input brlt,
     input breq,
     input pred_taken,
-    output reg [1:0] pc_sel,
+    output reg [2:0] pc_sel,
     output reg is_j,
     output reg wb2d_a,
     output reg wb2d_b,
@@ -32,6 +32,7 @@ module control_logic (
     assign x_is_jalr = inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0;
     assign x_is_branch = inst_x[6:0] == 7'h63;
     assign fd_is_branch = inst_fd[6:0] == 7'h63;
+    assign fd_is_jal = inst_fd[6:0] == 7'h6F;
 
     always @(negedge clk) begin
         if (bp_enable && x_is_branch && fd_is_branch) begin
@@ -42,12 +43,20 @@ module control_logic (
                 pc_sel = 3;
             end
         end
-        else if (x_is_branch) begin
+        else if (x_is_branch && fd_is_jal) begin
+            if (br_taken != pred_taken) begin
+                pc_sel = 1;
+            end else begin
+                pc_sel = 4;
+            end
+        end else if (x_is_branch) begin
             pc_sel = 1;
         end else if (fd_is_branch) begin
             pc_sel = 3;  // Perform branch prediction
-        end else if (x_is_jal || x_is_jalr) begin
+        end else if (x_is_jalr) begin
             pc_sel = 0;
+        end else if (fd_is_jal) begin
+            pc_sel = 4;
         end else begin
             pc_sel = 2;
         end
@@ -59,7 +68,7 @@ module control_logic (
         2. If inst-X is a branch instruction, set to true.
     */
     always @(*) begin
-        if (x_is_jalr || x_is_jal) begin
+        if (x_is_jalr) begin
             is_j = 1;
         end else begin
             is_j = 0;

@@ -140,7 +140,7 @@ module cpu #(
     */
 
     // Selecting next PC
-    reg [1:0] pc_sel;
+    reg [2:0] pc_sel;
     // Selecting inst from BIOS or IMEM
     reg inst_sel;
     // Selection whether to input a nop or not
@@ -650,7 +650,7 @@ module cpu #(
       .mem_bios_dout(bios_lex),
       .dmem_lex(dmem_lex),
       .uart_out(uart_lex),
-      .pc(pc_x),
+      .pc(pc_mw),
       .alu(alu_mw),
       .wb_sel(wb_sel),
       .mem_out_sel(alu_mw[31:28]),
