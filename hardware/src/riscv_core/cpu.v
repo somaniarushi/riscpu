@@ -163,6 +163,8 @@ module cpu #(
     reg br_taken;
     // Predicted value for branch prediction
     reg br_pred_taken;
+    // Mispredict — returns true if the branch mispredicted.
+    reg mispredict;
 
     reg pred_taken;
     always @(posedge clk) begin
@@ -193,7 +195,8 @@ module cpu #(
       .alu_sel(alu_sel),
       .mem_rw(mem_rw),
       .wb_sel(wb_sel),
-      .br_taken(br_taken)
+      .br_taken(br_taken),
+      .mispredict(mispredict)
     );
 
     /* Fetch and Decode Section
