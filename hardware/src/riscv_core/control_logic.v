@@ -1,3 +1,5 @@
+`include "opcode.vh"
+
 module control_logic (
     input clk,
     input bp_enable,
@@ -18,7 +20,8 @@ module control_logic (
     output reg [3:0] alu_sel,
     output reg mem_rw,
     output reg [1:0] wb_sel,
-    output reg br_taken
+    output reg br_taken,
+    output reg mispredict
 );
 
     // Setting PCSel
@@ -27,20 +30,26 @@ module control_logic (
         2. If the branch of inst-X is taken or inst-X is JALR, then jump to ALU value -> ALU, PC Sel = 1
         3. If none of the above 2 are true, go to PC + 4, PC Sel = 2
     */
-    wire x_is_jal = inst_x[6:0] == 7'h6F;
-    wire x_is_jalr = inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0;
-    wire x_is_branch = inst_x[6:0] == 7'h63;
+    wire [6:0] x_opc = inst_x[6:0];
+
+
+    wire [2:0] x_func3 = inst_x[14:12];
+    wire [6:0] x_func7 = inst_x[31:25];
+
+    wire x_is_jal = x_opc == 7'h6F;
+    wire x_is_jalr = x_opc == 7'h67;
+    wire x_is_branch = x_opc == 7'h63;
 
     wire fd_is_branch = inst_fd[6:0] == 7'h63;
     wire fd_is_jal = inst_fd[6:0] == 7'h6F;
     wire fd_is_jalr = inst_fd[6:0] == 7'h67 && inst_fd[14:12] == 3'h0;
 
     wire mw_rd_exists = inst_mw[6:0] != 7'h63 && inst_mw[6:0] != 7'h23 && inst_mw[11:7] != 0;
-    wire x_rd_exists = inst_x[6:0] != 7'h63 && inst_x[6:0] != 7'h23 && inst_x[11:7] != 0;
+    wire x_rd_exists = x_opc != 7'h63 && x_opc != 7'h23 && inst_x[11:7] != 0;
     wire fd_rs1_exists = inst_fd[6:0] == 7'h33 || inst_fd[6:0] == 7'h23 || inst_fd[6:0] == 7'h63 || inst_fd[6:0] == 7'h03 ||inst_fd[6:0] == 7'h13 || inst_fd[6:0] == 7'h67 || inst_fd[6:0] == 7'h73;
     wire fd_rs2_exists = inst_fd[6:0] == 7'h33 || inst_fd[6:0] == 7'h23 || inst_fd[6:0] == 7'h63;
-    wire x_rs1_exists = inst_x[6:0] == 7'h33 || inst_x[6:0] == 7'h23 || inst_x[6:0] == 7'h63 || inst_x[6:0] == 7'h03 || inst_x[6:0] == 7'h13 || inst_x[6:0] == 7'h67 || inst_x[6:0] == 7'h73;
-    wire x_rs2_exists = inst_x[6:0] == 7'h33 || inst_x[6:0] == 7'h23 || inst_x[6:0] == 7'h63;
+    wire x_rs1_exists = x_opc == 7'h33 || x_opc == 7'h23 || x_opc == 7'h63 || x_opc == 7'h03 || x_opc == 7'h13 || x_opc == 7'h67 || x_opc == 7'h73;
+    wire x_rs2_exists = x_opc == 7'h33 || x_opc == 7'h23 || x_opc == 7'h63;
 
     wire instmw_is_jalr = inst_mw[6:0] == 7'h67 && inst_mw[14:12] == 3'h0;
     wire instmw_is_jal = inst_mw[6:0] == 7'h6F;
@@ -55,53 +64,18 @@ module control_logic (
 
     wire fd_x_rs1_conflict = x_rd_exists && fd_rs1_exists && (rs1_instfd == rd_instx);
     reg fd_x_conflict_cache;
-    always @(posedge clk) begin
-        fd_x_conflict_cache <= fd_x_rs1_conflict;
+    always @(posedge clk) fd_x_conflict_cache <= fd_x_rs1_conflict;
 
-    end
+    assign mispredict = x_is_branch && (br_taken != pred_taken);
 
     always @(*) begin
-        if (bp_enable && x_is_branch && fd_is_branch) begin
-            // If mispredict, x wins. If not, fd wins.
-            if (br_taken != pred_taken) begin
-                pc_sel = 1;
-            end else begin
-                pc_sel = 3;
-            end
-        end
-        else if (x_is_branch && fd_is_jal) begin
-            if (bp_enable) begin
-                if (br_taken != pred_taken) begin
-                    pc_sel = 1;
-                end else begin
-                    pc_sel = 4;
-                end
-            end else begin
-                pc_sel = (br_taken) ? 1 : 4;
-            end
-        end
-        else if (x_is_branch) begin
-            pc_sel = 1;
-        end
-        else if (fd_is_branch) begin
-            pc_sel = 3;  // Perform branch prediction
-        end
-        else if (fd_is_jal) begin
-            pc_sel = 4;
-        end
-        // If we are a jalr statement and there is no conflict, we can
-        // just jump.
-        else if (fd_is_jalr && !(fd_x_rs1_conflict)) begin
-            pc_sel = 5;
-        end
-        // If there was a conflict, then we have to jump to ALU
-        // value now.
-        else if (x_is_jalr && fd_x_conflict_cache) begin
-            pc_sel = 0;
-        end
-        else begin
-            pc_sel = 2;
-        end
+        if (mispredict) pc_sel = 1;
+        else if (fd_is_branch) pc_sel = 3;
+        else if (fd_is_jal) pc_sel = 4;
+        else if (fd_is_jalr && !fd_x_rs1_conflict) pc_sel = 5;
+        else if (x_is_branch) pc_sel = 1;
+        else if (x_is_jalr && fd_x_conflict_cache) pc_sel = 2;
+        else pc_sel = 0;
     end
 
     // Setting isJorB
@@ -109,82 +83,35 @@ module control_logic (
         1. If inst-X is a JALR instruction, set to true.
         2. If inst-X is a branch instruction, set to true.
     */
-
-    always @(*) begin
-        // If there was a conflict, then we're noping, otherwise,
-        // We've already jumped to the right instruction.
-        if (x_is_jalr && fd_x_conflict_cache) begin
-            is_j = 1;
-        end else begin
-            is_j = 0;
-        end
-    end
-
-
+    // If there was a conflict, then we're noping, otherwise,
+    // We've already jumped to the right instruction.
+    assign is_j = (x_is_jalr && fd_x_conflict_cache);
 
     // Setting wb2d-a
     /* Conflict between rs1 when rd of inst-MW = rs1 of inst-FD. */
-
-    always @(*) begin
-        if ((rd_instmw == rs1_instfd) && mw_rd_exists && fd_rs1_exists) begin // a conflict exists, forwarding required
-            wb2d_a = 1;
-        end else begin
-            wb2d_a = 0;
-        end
-    end
+    assign wb2d_a = (rd_instmw == rs1_instfd) && mw_rd_exists && fd_rs1_exists;
 
     // Setting wb2d-b
     /* Conflict between rs2 when rd of inst-MW  = rs2 of inst-FD. */
-    always @(*) begin
-        if ((rd_instmw == rs2_instfd) && mw_rd_exists && fd_rs2_exists) begin
-            wb2d_b = 1;
-        end else begin
-            wb2d_b = 0;
-        end
-    end
+    assign wb2d_b = (rd_instmw == rs2_instfd) && mw_rd_exists && fd_rs2_exists;
 
     // Setting brUN
     /* Branch unsigned = 1 if the inst type is B and func3[3:1] == "11" */
-    wire x_is_unsigned = inst_x[14:12] == 3'b110 || inst_x[14:12] == 3'b111; // BLTU or BGEU
-    always @(*) begin
-        if (x_is_branch && x_is_unsigned) begin
-            brun = 1;
-        end else begin
-            brun = 0;
-        end
-    end
+    wire x_is_unsigned = x_func3 == `FNC_BLTU || x_func3 == `FNC_BGEU; // BLTU or BGEU
+    assign brun = x_is_branch && x_is_unsigned;
 
     // Set br_taken
-    wire [6:0] x_opc = inst_x[6:0];
-    wire [2:0] x_func3 = inst_x[14:12];
-    wire [6:0] x_func7 = inst_x[31:25];
 
     always @(*) begin
         if (x_is_branch) begin
-            // BEQ
-            if (x_func3 == 3'b000) begin
-                br_taken = breq;
-            end
-            // BNE
-            else if (x_func3 == 3'b001) begin
-                br_taken = !breq;
-            end
-            // BLT
-            else if (x_func3 == 3'b100) begin
-                br_taken = brlt;
-            end
-            // BGE
-            else if (x_func3 == 3'b101) begin
-                br_taken = !brlt;
-            end
-            // BLTU
-            else if (x_func3 == 3'b110) begin
-                br_taken = brlt;
-            end
-            // BGEU
-            else begin
-                br_taken = !brlt;
-            end
+            case (x_func3)
+                `FNC_BEQ: br_taken = breq;
+                `FNC_BNE: br_taken = !breq;
+                `FNC_BLT: br_taken = brlt;
+                `FNC_BGE: br_taken = !brlt;
+                `FNC_BLTU: br_taken = brlt;
+                `FNC_BGEU: br_taken = !brlt;
+            endcase
         end else begin
             br_taken = 0;
         end
@@ -195,41 +122,16 @@ module control_logic (
         ASel[0] = 0 when RS1 is used. 1 when PC is used. Instruction is AUIPC, or jump or branch
         ASel[1] = 1 when WB forwarding is used. Conflict between rs1 and rd.
     */
-    always @(*) begin
-        // Forwarding Conflict
-        if ((rd_instmw == rs1_instx) && x_rs1_exists && mw_rd_exists) begin
-            asel[1] = 1;
-        end else begin
-            asel[1] = 0;
-        end
-        // PC or rs1
-        if (inst_x[6:0] == 7'h17 || inst_x[6:0] == 7'h6F || inst_x[6:0] == 7'h63) begin
-            asel[0] = 1;
-        end else begin
-            asel[0] = 0;
-        end
-    end
+    assign asel[1] = (rd_instmw == rs1_instx) && x_rs1_exists && mw_rd_exists;
+    assign asel[0] = (x_opc == 7'h17 || x_opc == 7'h6F || x_opc == 7'h63);
 
     // Setting BSEL
     /*
         BSel[0] = 0 when RS1 is used. 1 when IMM is used. If the instruction is not an R-type, select IMM.
         BSel[1] = 1 when WB forwarding is used. Conflict] between rs2 and rd.
     */
-    always @(*) begin
-        // Forwarding
-        if ((rd_instmw == rs2_instx) && x_rs2_exists && mw_rd_exists) begin
-            bsel[1] = 1;
-        end else begin
-            bsel[1] = 0;
-        end
-
-        // IMM vs rs2
-        if (inst_x[6:0] != 7'h33 && inst_x[6:0] != 7'h73) begin
-            bsel[0] = 1;
-        end else begin
-            bsel[0] = 0;
-        end
-    end
+    assign bsel[1] = (rd_instmw == rs2_instx) && x_rs2_exists && mw_rd_exists;
+    assign bsel[0] = x_opc != 7'h33 && x_opc != 7'h73;
 
     // Setting ALUSel
     /*
@@ -239,23 +141,9 @@ module control_logic (
     */
     // For R-Type
     always @(*) begin
-        if (x_opc == 7'h33) begin
+        if (x_opc == 7'h33 || x_opc == 7'h13 || x_opc == 7'h67) begin
             case (x_func3)
-                3'b000: alu_sel = (x_func7 == 7'b0) ? 0 : 1;
-                3'b001: alu_sel = 2;
-                3'b010: alu_sel = 3;
-                3'b011: alu_sel = 4;
-                3'b100: alu_sel = 5;
-                3'b101: alu_sel = (x_func7 == 7'b0) ? 6 : 7;
-                3'b110: alu_sel = 8;
-                3'b111: alu_sel = 9;
-                default: alu_sel = 0;
-            endcase
-        end
-        // For I-Type instructions
-        else if (x_opc == 7'h13 || x_opc == 7'h67) begin
-            case (x_func3)
-                3'b000: alu_sel = 0;
+                3'b000: alu_sel = (x_opc == 7'h33 && x_func7 != 7'b0);
                 3'b001: alu_sel = 2;
                 3'b010: alu_sel = 3;
                 3'b011: alu_sel = 4;
@@ -280,28 +168,14 @@ module control_logic (
     /*
     1. If the instruction is an S-type, then write, otherwise read.
     */
-    always @(*) begin
-        if (inst_x[6:0] == 7'h23) begin // TODO: inst_mw?
-            mem_rw = 1;
-        end else begin
-            mem_rw = 0;
-        end
-    end
+    assign mem_rw = x_opc == 7'h23;
 
     // Setting RegWen
     /*
         1. If the type of instruction is not branch or store, we're writing to RD.
         2. Otherwise, set to 0.
     */
-    always @(*) begin
-        // Instruction is branch or store (rd doesn't exist) or rd is zero, don't write.
-
-        if (mw_rd_exists) begin
-            reg_wen = 1;
-        end else begin
-            reg_wen = 0;
-        end
-    end
+    assign reg_wen = mw_rd_exists;
 
     // Setting WBSEL
     /*
