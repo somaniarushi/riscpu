@@ -265,7 +265,6 @@ module cpu #(
     assign bios_ena = 1;
     assign inst_sel = pc_in[30]; // Lock in inst_sel to it's corresponding value
 
-    reg [31:0] next_inst;
 
     fetch_instruction fi (
       // Inputs
@@ -277,11 +276,8 @@ module cpu #(
       // Outputs
       .bios_addr(bios_addra),
       .imem_addr(imem_addrb),
-      .inst(next_inst)
+      .inst(inst_fd)
     );
-
-
-    assign inst_fd = next_inst;
 
     immediate_generator immgen (
       // Inputs
