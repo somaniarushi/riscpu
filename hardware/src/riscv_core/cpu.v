@@ -542,7 +542,7 @@ module cpu #(
     end
 
     // Write to UART
-    always @(posedge clk) begin
+    always @(*) begin
       if (uart_op && inst_uart[6:0] == 7'h23 && alu_uart[3:0] == 'h8) begin
           uart_tx_data_in = data_in[7:0];
       end else begin
