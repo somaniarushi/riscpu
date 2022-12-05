@@ -26,27 +26,15 @@ li x20, 2           # Set the flag register
                     # Now we check that x1 contains 500 and x2 contains 100
 
 # TODO: add more tests here
-li x10, 0
-lui x10, 0x80000
-addi x10, x10, 0x14
-lw x1, 0(x10)
-li x20, 3
-
-li x10, 1000
-jal x1, jump2
-jump2: sw x1 0(x10)
-lw x2 0(x10)
-addi x2, x2, 100
-li x20, 4
-
-li x2, 100
-jal x1, jump3
-addi x10, x1, 1000
-jump3: beq x2, x1, branch3
-addi x2, x0, 100
-j last
-branch3: addi x2, x0, 150
-last: li x20, 5
+li x2, 0x10000000
+sw x2, 0(x2)
+addi x0, x0, 14
+lw x1, 0(x2)
+beq x1, x2, Label
+addi x0, x0, 1000
+addi x0, x0, 2000
+Label: addi x0, x0, 2000
+li x20, 6
 
 
 done: j done

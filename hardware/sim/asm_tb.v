@@ -8,8 +8,8 @@ module asm_tb();
 
   initial clk = 0;
   always #(CPU_CLOCK_PERIOD/2) clk = ~clk;
-  
-  reg bp_enable = 1'b0;
+
+  reg bp_enable = 1'b1;
 
   cpu # (
     .CPU_CLOCK_FREQ(CPU_CLOCK_FREQ)
@@ -72,6 +72,8 @@ module asm_tb();
     wait_for_reg_to_equal(20, 32'd2);       // Run the simulation until the flag is set to 2
     check_reg(1, 32'd500, 2);               // Verify that x1 contains 500
     check_reg(2, 32'd100, 3);               // Verify that x2 contains 100
+
+    wait_for_reg_to_equal(20, 32'd6);
 
     // wait_for_reg_to_equal(20, 32'd3);
     // check_reg(1, 32'd12, 4);
