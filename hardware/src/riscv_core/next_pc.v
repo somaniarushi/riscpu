@@ -35,9 +35,9 @@ module fetch_next_pc #(
         if (rst) begin
             next = RESET_PC;
         end else begin
-            // Jump instruction: jal (and half of next instruction)
-            if (pc_sel == 0) begin
-                next = (x_is_jalr) ? alu : pc + 4;
+            // Jump instruction X stage
+            if (pc_sel == 2) begin
+                next = alu;
             end
             // Branch instructions: result
             else if (pc_sel == 1) begin
@@ -73,6 +73,5 @@ module fetch_next_pc #(
             end
         end
     end
-
     assign next_pc = next;
 endmodule
