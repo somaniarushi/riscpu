@@ -5,8 +5,6 @@ module branch_comp (
     output reg brlt,
     output reg breq
 );
-    // wire signed [31:0] rs1_s = rs1;
-    // wire signed [31:0] rs2_s = rs2;
     always @(*) begin
         if (brun) begin
             brlt = (rs1 < rs2) ? 1 : 0;
