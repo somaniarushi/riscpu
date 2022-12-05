@@ -32,5 +32,21 @@ addi x10, x10, 0x14
 lw x1, 0(x10)
 li x20, 3
 
+li x10, 1000
+jal x1, jump2
+jump2: sw x1 0(x10)
+lw x2 0(x10)
+addi x2, x2, 100
+li x20, 4
+
+li x2, 100
+jal x1, jump3
+addi x10, x1, 1000
+jump3: beq x2, x1, branch3
+addi x2, x0, 100
+j last
+branch3: addi x2, x0, 150
+last: li x20, 5
+
 
 done: j done

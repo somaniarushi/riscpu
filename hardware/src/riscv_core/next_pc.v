@@ -6,11 +6,13 @@ module fetch_next_pc #(
     input [2:0] pc_sel,
     input [31:0] pc,
     input [31:0] pc_fd,
-    input [31:0] next_pc_in,
+    input [31:0] pc_imm,
+    input [31:0] rs1_imm,
     input [31:0] alu,
     input br_taken,
     input br_pred_taken,
     input bp_enable,
+    input x_is_jalr,
     output [31:0] next_pc
 );
     /*
@@ -21,9 +23,11 @@ module fetch_next_pc #(
     */
     reg pred_cache;
     reg [31:0] pc_prev_cache;
+    reg [31:0] pc_imm_cache;
     always @(posedge clk) begin
         pred_cache <= br_pred_taken;
         pc_prev_cache <= pc;
+        pc_imm_cache <= pc_imm;
     end
 
     reg [31:0] next;
@@ -31,9 +35,9 @@ module fetch_next_pc #(
         if (rst) begin
             next = RESET_PC;
         end else begin
-            // Jump instruction: jal
+            // Jump instruction: jal (and half of next instruction)
             if (pc_sel == 0) begin
-                next = alu;
+                next = (x_is_jalr) ? alu : pc + 4;
             end
             // Branch instructions: result
             else if (pc_sel == 1) begin
@@ -50,14 +54,17 @@ module fetch_next_pc #(
             // Branch instruction: prediction
             else if (pc_sel == 3) begin
                 if (bp_enable) begin
-                    next = (br_pred_taken) ? next_pc_in : pc + 4;
+                    next = (br_pred_taken) ? pc_imm : pc + 4;
                 end else begin
                     next = pc + 4;
                 end
             end
             else if (pc_sel == 4) begin
-                next = next_pc_in;
+                next = pc_imm;
             end
+            // else if (pc_sel == 5) begin
+            //     next = rs1_imm;
+            // end
             // Simple next instruction
             else begin
                 next = pc + 4;

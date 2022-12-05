@@ -169,6 +169,8 @@ module cpu #(
       pred_taken <= br_pred_taken;
     end
 
+    reg [31:0] rs1_fd, rs2_fd, csr_reg;
+
     control_logic cl (
       // Inputs
       .clk(clk),
@@ -212,10 +214,12 @@ module cpu #(
 
     // PC updater
     reg [31:0] next_pc;
-    reg [31:0] pc_in_next;
+    reg [31:0] pc_imm;
+    reg [31:0] rs1_imm;
     
     always @(negedge clk) begin
-      pc_in_next <= pc_in + imm_fd;
+      pc_imm <= pc_fd + imm_fd;
+      rs1_imm <= rs1_fd + imm_fd;
     end 
     
     fetch_next_pc # (
@@ -226,12 +230,14 @@ module cpu #(
       .rst(rst),
       .pc(pc_in),
       .pc_fd(pc_fd),
-      .next_pc_in(pc_in_next),
+      .pc_imm(pc_imm),
+      .rs1_imm(rs1_imm),
       .alu(alu_x),
       .pc_sel(pc_sel),
       .bp_enable(bp_enable),
       .br_taken(br_taken),
       .br_pred_taken(br_pred_taken),
+      .x_is_jalr(inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0),
       // Outputs
       .next_pc(next_pc)
     );
@@ -281,9 +287,6 @@ module cpu #(
       // Outputs
       .imm(imm_fd)
     );
-
-
-    reg [31:0] rs1_fd, rs2_fd, csr_reg;
 
     // Sets ra1 and ra2
     // Handles forwarding for rs1, rs2 and wb_val
@@ -583,7 +586,7 @@ module cpu #(
 
     // Write to UART
     always @(*) begin
-      if (alu_uart[31:28] == 4'b1000) begin
+      if (alu_uart[31:28] == 4'b1000 && inst_x[6:0] == 7'h23) begin
         if (alu_uart[3:0] == 'h8) begin
           uart_tx_data_in = data_in[7:0];
         end

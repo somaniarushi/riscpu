@@ -26,3 +26,5 @@
 25. Bug fix: Fix UARt indexing to be 8 bits to account for cycle/instruction counting read properly.
 26. change `pc_sel` to be set on the negative clock edge to account for COMBINATIONAL LOOP alert. Equivalently, change `is_br_guess` to simply `bp_enable`.
 27. Logic Update: Changed branch prediction logic. Wrapped pc selection in bp_enable condition. Saving prior branch prediction and compare with branch taken boolean to determine pc. 
+28. Logic Update: Resolving jal in one clock cycle.
+29. Bug fix: Making sure that jalr does not error when transistioning, thus allowing jal (resolved in fd) to function properly.
