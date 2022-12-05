@@ -4,24 +4,15 @@ module fetch_instruction(
     input inst_sel,
     input [31:0] bios_dout,
     input [31:0] imem_dout,
-    output [11:0] bios_addr,
-    output [13:0] imem_addr,
+    output reg [11:0] bios_addr,
+    output reg [13:0] imem_addr,
     output [31:0] inst
 );
-    reg [31:0] bios;
-    assign bios_addr = bios;
-
-    reg [31:0] imem;
-    assign imem_addr = imem;
-
     // For every +4 to the PC, there should only be a +1 to IMEM indices.
-    reg [31:0] pc_right_shifted;
-    assign pc_right_shifted = pc >> 2;
-
     // IMEM/BIOS Read
     always @(*) begin
-      bios = pc_right_shifted[11:0]; // Set bios_addra
-      imem = pc_right_shifted[13:0]; // Set imem_addrb
+      bios_addr = pc[13:2]; // Set bios_addra
+      imem_addr = pc[15:2]; // Set imem_addrb
     end
 
     // Inst Sel + Jump logic
