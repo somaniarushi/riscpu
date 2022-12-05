@@ -18,7 +18,7 @@ module read_from_reg(
     end
 
     // MW2D Forwarding
-    assign rs1 = (ra1 == 0) ? 0 : ((wb2d_a) ? wb_val : rd1);
-    assign rs2 = (ra2 == 0) ? 0 : ((wb2d_b) ? wb_val : rd2);
+    assign rs1 = ((wb2d_a) ? wb_val : rd1);
+    assign rs2 = ((wb2d_b) ? wb_val : rd2);
 
 endmodule
