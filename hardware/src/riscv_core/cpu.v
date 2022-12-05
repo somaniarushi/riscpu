@@ -242,15 +242,22 @@ module cpu #(
       .next_pc(next_pc)
     );
 
+    reg [31:0] br_taken_cache;
+    always @(posedge clk) begin
+      br_taken_cache <= br_taken;
+    end
+
     branch_predictor bpred (
       .clk(clk),
       .reset(rst),
       .pc_guess(pc_fd),
       .is_br_guess(bp_enable && inst_fd[6:0] == 7'h63),
 
-      .pc_check(pc_x),
-      .is_br_check(bp_enable && inst_x[6:0] == 7'h63),
-      .br_taken_check(br_taken),
+      // TODO: Make sure this isn't doing worse
+      // by making more cache misses
+      .pc_check(pc_mw),
+      .is_br_check(bp_enable && inst_mw[6:0] == 7'h63),
+      .br_taken_check(br_taken_cache),
 
       .br_pred_taken(br_pred_taken)
     );
