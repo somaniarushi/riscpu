@@ -9,6 +9,7 @@ module control_logic (
     input brlt,
     input breq,
     input pred_taken,
+    input [3:0] mem_out_sel,
     output reg [2:0] pc_sel,
     output reg is_j,
     output reg wb2d_a,
@@ -21,7 +22,8 @@ module control_logic (
     output reg mem_rw,
     output reg [1:0] wb_sel,
     output reg br_taken,
-    output reg mispredict
+    output reg mispredict,
+    output reg [1:0] mem_sel
 );
 
     // Setting PCSel
@@ -169,6 +171,14 @@ module control_logic (
     1. If the instruction is an S-type, then write, otherwise read.
     */
     assign mem_rw = x_opc == 7'h23;
+
+    always @(*) begin
+        case (mem_out_sel)
+            4'b0100: mem_sel = 2;
+            4'b1000: mem_sel = 1;
+            default: mem_sel = 0;
+        endcase
+    end
 
     // Setting RegWen
     /*

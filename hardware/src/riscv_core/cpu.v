@@ -135,6 +135,9 @@ module cpu #(
     // Values inputed into control logic from branch comp
     reg brlt, breq;
 
+    // Bits that determine which unit to read from
+    reg [3:0] mem_out_sel;
+
     /*
     Control logic values
     */
@@ -155,6 +158,8 @@ module cpu #(
     reg [3:0] alu_sel;
     // Selects whether the memory unit reads or writes.
     reg mem_rw;
+    // Selects which memory unit to read from
+    reg [1:0] mem_sel;
     // Selects writeback values
     reg [1:0] wb_sel;
     // Select reg wr en
@@ -167,9 +172,7 @@ module cpu #(
     reg mispredict;
 
     reg pred_taken;
-    always @(posedge clk) begin
-      pred_taken <= br_pred_taken;
-    end
+    always @(posedge clk) pred_taken <= br_pred_taken;
 
     reg [31:0] rs1_fd, rs2_fd, csr_reg;
 
@@ -183,6 +186,7 @@ module cpu #(
       .breq(breq),
       .pred_taken(pred_taken),
       .bp_enable(bp_enable),
+      .mem_out_sel(mem_out_sel),
       // Outputs
       .pc_sel(pc_sel),
       .is_j(is_j),
@@ -196,7 +200,8 @@ module cpu #(
       .mem_rw(mem_rw),
       .wb_sel(wb_sel),
       .br_taken(br_taken),
-      .mispredict(mispredict)
+      .mispredict(mispredict),
+      .mem_sel(mem_sel)
     );
 
     /* Fetch and Decode Section
@@ -646,7 +651,7 @@ module cpu #(
     //   .inst(inst_mw),
     //   .addr(alu_x)
     // );
-
+    assign mem_out_sel = alu_mw[31:28];
     wb_selector wber (
       // Inputs
       .mem_bios_dout(bios_lex),
@@ -655,7 +660,7 @@ module cpu #(
       .pc(pc_mw),
       .alu(alu_mw),
       .wb_sel(wb_sel),
-      .mem_out_sel(alu_mw[31:28]),
+      .mem_sel(mem_sel),
       // Outputs
       .wb_val(wb_val)
     );
