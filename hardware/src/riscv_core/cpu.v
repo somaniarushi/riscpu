@@ -216,12 +216,12 @@ module cpu #(
     reg [31:0] next_pc;
     reg [31:0] pc_imm;
     reg [31:0] rs1_imm;
-    
-    always @(negedge clk) begin
-      pc_imm <= pc_fd + imm_fd;
-      rs1_imm <= rs1_fd + imm_fd;
-    end 
-    
+
+    always @(*) begin
+      pc_imm = pc_fd + imm_fd;
+      rs1_imm = rs1_fd + imm_fd;
+    end
+
     fetch_next_pc # (
         .RESET_PC(RESET_PC)
     ) fn (
@@ -242,26 +242,21 @@ module cpu #(
       .next_pc(next_pc)
     );
 
-    reg [31:0] inst_fd_cache;
-    always @(negedge clk) begin
-      inst_fd_cache <= inst_fd;
-    end
-
     branch_predictor bpred (
       .clk(clk),
       .reset(rst),
       .pc_guess(pc_fd),
-      .is_br_guess(bp_enable && inst_fd_cache[6:0] == 7'h63),
+      .is_br_guess(bp_enable && inst_fd[6:0] == 7'h63),
 
       .pc_check(pc_x),
       .is_br_check(bp_enable && inst_x[6:0] == 7'h63),
-      .br_taken_check(br_taken), 
+      .br_taken_check(br_taken),
 
       .br_pred_taken(br_pred_taken)
     );
 
     assign bios_ena = 1;
-    assign inst_sel = next_pc[30]; // Lock in inst_sel to it's corresponding value
+    assign inst_sel = pc_in[30]; // Lock in inst_sel to it's corresponding value
 
     reg [31:0] next_inst;
 
@@ -311,13 +306,11 @@ module cpu #(
 
 
     reg [31:0] rs1, rs2;
-    reg rst_reg;
     // Clocking block
     always @(posedge clk) begin
       // Delaying the rst register by a clock cycle, such that, if there was a
       // rst signal in the previous clock cycle
       // We make sure to null out inst_fd in this clock cycle
-      rst_reg <= rst;
       pc_fd <= next_pc;
 
       if (rst) begin

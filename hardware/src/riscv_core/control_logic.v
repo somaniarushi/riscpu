@@ -60,7 +60,7 @@ module control_logic (
 
     end
 
-    always @(negedge clk) begin
+    always @(*) begin
         if (bp_enable && x_is_branch && fd_is_branch) begin
             // If mispredict, x wins. If not, fd wins.
             if (br_taken != pred_taken) begin
