@@ -517,13 +517,13 @@ module cpu #(
 
     // Read from UART
 
-    wire [31:0] alu_uart;
-    assign alu_uart = alu_x;
+    wire [31:0] alu_uart = alu_x;
+    wire [31:0] inst_uart = inst_x;
 
     reg [31:0] uart_data_out;
-    wire reading_from_uart = alu_uart[31:28] == 4'b1000;
+    wire uart_op = alu_uart[31:28] == 4'b1000;
     always @(*) begin
-      if (reading_from_uart && (inst_x[6:0] == 7'h03)) begin
+      if (uart_op && (inst_uart[6:0] == 7'h03)) begin
         // UART control signal
         case (alu_uart[7:0])
           'h0: uart_data_out = {30'b0, uart_rx_data_out_valid, uart_tx_data_in_ready};
@@ -542,8 +542,8 @@ module cpu #(
     end
 
     // Write to UART
-    always @(*) begin
-      if (reading_from_uart && inst_x[6:0] == 7'h23 && alu_uart[3:0] == 'h8) begin
+    always @(posedge clk) begin
+      if (uart_op && inst_uart[6:0] == 7'h23 && alu_uart[3:0] == 'h8) begin
           uart_tx_data_in = data_in[7:0];
       end else begin
         uart_tx_data_in = 8'b0;
@@ -551,8 +551,8 @@ module cpu #(
     end
 
     // Assign control signals, check instruction is actually a UART command
-    assign uart_rx_data_out_ready = (alu_x == 32'h80000004) && (inst_x[6:0] == 7'h03);
-    assign uart_tx_data_in_valid = (alu_x == 32'h80000008) && (inst_x[6:0] == 7'h23);
+    assign uart_rx_data_out_ready = (alu_uart == 32'h80000004) && (inst_uart[6:0] == 7'h03);
+    assign uart_tx_data_in_valid = (alu_uart == 32'h80000008) && (inst_uart[6:0] == 7'h23);
 
 
     // Write to IMEM
