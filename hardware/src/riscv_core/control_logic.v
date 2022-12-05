@@ -33,7 +33,7 @@ module control_logic (
 
     wire fd_is_branch = inst_fd[6:0] == 7'h63;
     wire fd_is_jal = inst_fd[6:0] == 7'h6F;
-    wire fd_is_jalr = inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0;
+    wire fd_is_jalr = inst_fd[6:0] == 7'h67 && inst_fd[14:12] == 3'h0;
 
     wire mw_rd_exists = inst_mw[6:0] != 7'h63 && inst_mw[6:0] != 7'h23 && inst_mw[11:7] != 0;
     wire x_rd_exists = inst_x[6:0] != 7'h63 && inst_x[6:0] != 7'h23 && inst_x[11:7] != 0;
@@ -54,7 +54,11 @@ module control_logic (
     wire [4:0] rs2_instx = inst_x[24:20];
 
     wire fd_x_rs1_conflict = x_rd_exists && fd_rs1_exists && (rs1_instfd == rd_instx);
+    reg fd_x_conflict_cache;
+    always @(posedge clk) begin
+        fd_x_conflict_cache <= fd_x_rs1_conflict;
 
+    end
 
     always @(negedge clk) begin
         if (bp_enable && x_is_branch && fd_is_branch) begin
@@ -75,22 +79,26 @@ module control_logic (
             end else begin
                 pc_sel = (br_taken) ? 1 : 4;
             end
-        end 
+        end
         else if (x_is_branch) begin
             pc_sel = 1;
-        end 
+        end
         else if (fd_is_branch) begin
             pc_sel = 3;  // Perform branch prediction
-        end 
+        end
         else if (fd_is_jal) begin
             pc_sel = 4;
-        end 
-        // else if (fd_is_jalr && !(fd_x_rs1_conflict)) begin
-        //     pc_sel = 5;
-        // end
-        else if (x_is_jalr) begin
+        end
+        // If we are a jalr statement and there is no conflict, we can
+        // just jump.
+        else if (fd_is_jalr && !(fd_x_rs1_conflict)) begin
+            pc_sel = 5;
+        end
+        // If there was a conflict, then we have to jump to ALU
+        // value now.
+        else if (x_is_jalr && fd_x_conflict_cache) begin
             pc_sel = 0;
-        end 
+        end
         else begin
             pc_sel = 2;
         end
@@ -101,13 +109,11 @@ module control_logic (
         1. If inst-X is a JALR instruction, set to true.
         2. If inst-X is a branch instruction, set to true.
     */
-    reg fd_x_conflict_cache;
-    always @(posedge clk) begin
-        fd_x_conflict_cache <= fd_x_rs1_conflict;
-    end
-    
+
     always @(*) begin
-        if (x_is_jalr) begin
+        // If there was a conflict, then we're noping, otherwise,
+        // We've already jumped to the right instruction.
+        if (x_is_jalr && fd_x_conflict_cache) begin
             is_j = 1;
         end else begin
             is_j = 0;

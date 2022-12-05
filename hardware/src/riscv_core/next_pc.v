@@ -41,15 +41,15 @@ module fetch_next_pc #(
             end
             // Branch instructions: result
             else if (pc_sel == 1) begin
-                if (bp_enable) begin 
+                if (bp_enable) begin
                     if (pred_cache) begin
                         next = (br_taken) ? pc + 4 : pc_prev_cache + 4;
                     end else begin
                         next = (br_taken) ? alu : pc + 4;
                     end
-                end else begin 
+                end else begin
                     next = (br_taken) ? alu : pc_fd + 4;
-                end 
+                end
             end
             // Branch instruction: prediction
             else if (pc_sel == 3) begin
@@ -59,12 +59,14 @@ module fetch_next_pc #(
                     next = pc + 4;
                 end
             end
+            // Jal Optimization
             else if (pc_sel == 4) begin
                 next = pc_imm;
             end
-            // else if (pc_sel == 5) begin
-            //     next = rs1_imm;
-            // end
+            // Jalr Optimization
+            else if (pc_sel == 5) begin
+                next = rs1_imm;
+            end
             // Simple next instruction
             else begin
                 next = pc + 4;
