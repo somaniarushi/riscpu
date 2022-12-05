@@ -18,6 +18,6 @@ module ex_forwarding (
 
     always @(*) begin
         rs1_in = asel[0] ? pc : (asel[1] ? wb_val : rs1); // if asel second bit is high, forward pc, else keep rs1_br
-        rs2_in = bsel[0] ? imm : (asel[1] ? wb_val : rs1); // if bsel second bit is high, forward imm, else keep rs2_br
+        rs2_in = bsel[0] ? imm : (bsel[1] ? wb_val : rs2); // if bsel second bit is high, forward imm, else keep rs2_br
     end
 endmodule
