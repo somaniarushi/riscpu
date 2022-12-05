@@ -2,7 +2,6 @@
 
 module control_logic (
     input clk,
-    input bp_enable,
     input [31:0] inst_fd,
     input [31:0] inst_x,
     input [31:0] inst_mw,

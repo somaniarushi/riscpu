@@ -109,7 +109,6 @@ module cpu #(
     reg [31:0] tohost_csr;
 
     // The PCs for the instructions in the pipeline
-    reg [31:0] pc_in;
     reg [31:0] pc_fd;
     reg [31:0] pc_x;
     reg [31:0] pc_mw;
@@ -185,7 +184,6 @@ module cpu #(
       .brlt(brlt),
       .breq(breq),
       .pred_taken(pred_taken),
-      .bp_enable(bp_enable),
       .mem_out_sel(mem_out_sel),
       // Outputs
       .pc_sel(pc_sel),
@@ -222,13 +220,8 @@ module cpu #(
 
     // PC updater
     reg [31:0] next_pc;
-    reg [31:0] pc_imm;
-    reg [31:0] rs1_imm;
-
-    always @(*) begin
-      pc_imm = pc_fd + imm_fd;
-      rs1_imm = rs1_fd + imm_fd;
-    end
+    wire [31:0] pc_imm = pc_fd + imm_fd;
+    wire [31:0] rs1_imm = rs1_fd + imm_fd;
 
     fetch_next_pc # (
         .RESET_PC(RESET_PC)
@@ -236,16 +229,14 @@ module cpu #(
       // Inputs
       .clk(clk),
       .rst(rst),
-      .pc(pc_in),
-      .pc_fd(pc_fd),
+      .pc(pc_fd),
       .pc_imm(pc_imm),
       .rs1_imm(rs1_imm),
       .alu(alu_x),
       .pc_sel(pc_sel),
-      .bp_enable(bp_enable),
       .br_taken(br_taken),
       .br_pred_taken(br_pred_taken),
-      .x_is_jalr(inst_x[6:0] == 7'h67 && inst_x[14:12] == 3'h0),
+      .mispredict(mispredict),
       // Outputs
       .next_pc(next_pc)
     );
@@ -255,25 +246,26 @@ module cpu #(
       br_taken_cache <= br_taken;
     end
 
+    wire fd_is_branch = inst_fd[6:0] == 7'h63;
+    wire x_is_branch = inst_x[6:0] == 7'h63;
+    wire mw_is_branch = inst_mw[6:0] == 7'h63;
     branch_predictor bpred (
       .clk(clk),
       .reset(rst),
       .pc_guess(pc_fd),
-      .is_br_guess(bp_enable && inst_fd[6:0] == 7'h63),
+      .is_br_guess(bp_enable && fd_is_branch),
 
       // TODO: Make sure this isn't doing worse
       // by making more cache misses
       .pc_check(pc_mw),
-      .is_br_check(bp_enable && inst_mw[6:0] == 7'h63),
+      .is_br_check(bp_enable && mw_is_branch),
       .br_taken_check(br_taken_cache),
 
       .br_pred_taken(br_pred_taken)
     );
 
     assign bios_ena = 1;
-    assign inst_sel = pc_in[30]; // Lock in inst_sel to it's corresponding value
-
-
+    assign inst_sel = pc_fd[30];
     fetch_instruction fi (
       // Inputs
       .pc(next_pc),
@@ -311,51 +303,40 @@ module cpu #(
       .rs2(rs2_fd)
     );
 
+    // Writeback
     assign we = reg_wen;
     assign wa = inst_mw[11:7];
     assign wd = wb_val;
 
-
     reg [31:0] rs1, rs2;
-    // Clocking block
     always @(posedge clk) begin
-      // Delaying the rst register by a clock cycle, such that, if there was a
-      // rst signal in the previous clock cycle
-      // We make sure to null out inst_fd in this clock cycle
-      pc_fd <= next_pc;
-
       if (rst) begin
-        pc_in <= RESET_PC;
+        pc_fd <= RESET_PC;
         pc_x <= 0;
         imm_x <= 0;
         inst_x <= 0;
         rs1 <= 0;
         rs2 <= 0;
       end else begin
-        pc_in <= next_pc;
+        pc_fd <= next_pc;
         pc_x <= pc_fd;
         imm_x <= imm_fd;
-        if (inst_x[6:0] == 7'h63) begin
-          if (bp_enable) begin
-            inst_x <= (br_taken ^ pred_taken) ? 32'h13 : inst_fd;
-          end else begin
-            inst_x <= (br_taken) ? 32'h13 : inst_fd;
-          end
-        end else begin
-          inst_x <= inst_fd;
-        end
-        // CSR Instructions
+        inst_x <= (mispredict) ? 32'h13 : inst_fd;
         rs1 <= rs1_fd;
         rs2 <= rs2_fd;
       end
     end
+
+    // You can take the counters out of the critical path for slightly worse
+    // functionality.
+    wire reset_counters = alu_mw == 32'h80000018;
 
     /*
       Cycle counter for system.
     */
     reg [31:0] cycle_count;
     always @(posedge clk) begin
-      if (rst  || alu_x == 32'h80000018) begin
+      if (rst  || reset_counters) begin
         cycle_count <= 0;
       end else begin
         cycle_count <= cycle_count + 1;
@@ -368,30 +349,21 @@ module cpu #(
     */
     reg [31:0] inst_count;
     always @(posedge clk) begin
-      if (rst || alu_x == 32'h80000018) begin
+      if (rst || reset_counters) begin
         inst_count <= 0;
       end else begin
-        if (!is_j) begin
-          if (bp_enable) begin
-            if (pred_taken == br_taken) begin
-              inst_count <= inst_count + 1;
-            end
-          end
-          else begin
-            if (!br_taken) begin
-              inst_count <= inst_count + 1;
-            end
-          end
+        if (!is_j && (pred_taken == br_taken)) begin
+            inst_count <= inst_count + 1;
         end
       end
     end
 
     reg [31:0] branch_counter;
     always @(posedge clk) begin
-      if (rst || alu_x == 32'h80000018) begin
+      if (rst || reset_counters) begin
         branch_counter <= 0;
       end else begin
-        if (inst_mw[6:0] == 7'h63) begin
+        if (mw_is_branch) begin
           branch_counter <= branch_counter + 1;
         end
       end
@@ -399,17 +371,11 @@ module cpu #(
 
     reg [31:0] branch_correct;
     always @(posedge clk) begin
-      if (rst || alu_x == 32'h80000018) begin
+      if (rst || reset_counters) begin
         branch_correct <= 0;
       end else begin
-        if (bp_enable) begin
-          if (inst_x[6:0] == 7'h63 && (pred_taken == br_taken)) begin
-            branch_correct <= branch_correct + 1;
-          end
-        end else begin
-          if (inst_x[6:0] == 7'h63 && !br_taken) begin
-            branch_correct <= branch_correct + 1;
-          end
+        if (x_is_branch && !mispredict) begin
+          branch_correct <= branch_correct + 1;
         end
       end
     end
@@ -555,32 +521,19 @@ module cpu #(
     assign alu_uart = alu_x;
 
     reg [31:0] uart_data_out;
+    wire reading_from_uart = alu_uart[31:28] == 4'b1000;
     always @(*) begin
-      if (alu_uart[31:28] == 4'b1000 && (inst_x[6:0] == 7'h03)) begin
+      if (reading_from_uart && (inst_x[6:0] == 7'h03)) begin
         // UART control signal
-        if (alu_uart[7:0] == 'h0) begin
-          uart_data_out = {30'b0, uart_rx_data_out_valid, uart_tx_data_in_ready};
-        end
-        // UART Receiver data
-        else if (alu_uart[7:0] == 'h4) begin
-          uart_data_out = {24'b0, uart_rx_data_out};
-        end
-        else if (alu_uart[7:0] == 'h10) begin
-          uart_data_out = cycle_count;
-        end
-        else if (alu_uart[7:0] == 'h14) begin
-          uart_data_out = inst_count;
-        end
-        else if (alu_uart[7:0] == 'h1c) begin
-          uart_data_out = branch_counter;
-        end
-        else if (alu_uart[7:0] == 'h20) begin
-          uart_data_out = branch_correct;
-        end
-        // Default
-        else begin
-          uart_data_out = 32'b0;
-        end
+        case (alu_uart[7:0])
+          'h0: uart_data_out = {30'b0, uart_rx_data_out_valid, uart_tx_data_in_ready};
+          'h4: uart_data_out = {24'b0, uart_rx_data_out};
+          'h10: uart_data_out = cycle_count;
+          'h14: uart_data_out = inst_count;
+          'h1c: uart_data_out = branch_counter;
+          'h20: uart_data_out = branch_correct;
+          default: uart_data_out = 32'b0;
+        endcase
       end
       // Default
       else begin
@@ -590,16 +543,10 @@ module cpu #(
 
     // Write to UART
     always @(*) begin
-      if (alu_uart[31:28] == 4'b1000 && inst_x[6:0] == 7'h23) begin
-        if (alu_uart[3:0] == 'h8) begin
+      if (reading_from_uart && inst_x[6:0] == 7'h23 && alu_uart[3:0] == 'h8) begin
           uart_tx_data_in = data_in[7:0];
-        end
-        else begin
-          uart_tx_data_in = 8'h0;
-        end
-      end
-      else begin
-          uart_tx_data_in = 8'b0;
+      end else begin
+        uart_tx_data_in = 8'b0;
       end
     end
 
@@ -639,18 +586,11 @@ module cpu #(
     );
 
     reg [31:0] uart_out;
-    always @(posedge clk) begin
-      uart_out <= uart_data_out;
-    end
+    always @(posedge clk) uart_out <= uart_data_out;
 
     reg [31:0] uart_lex;
     assign uart_lex = uart_out;
-    // load_extender ulexer (
-    //   .in(uart_out),
-    //   .out(uart_lex),
-    //   .inst(inst_mw),
-    //   .addr(alu_x)
-    // );
+
     assign mem_out_sel = alu_mw[31:28];
     wb_selector wber (
       // Inputs
