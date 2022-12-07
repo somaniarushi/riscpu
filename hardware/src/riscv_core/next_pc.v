@@ -9,6 +9,7 @@ module fetch_next_pc #(
     input [31:0] rs1_imm,
     input [31:0] alu,
     input br_taken,
+    input br_taken_fd,
     input br_pred_taken,
     input mispredict,
     output [31:0] next_pc
@@ -51,6 +52,9 @@ module fetch_next_pc #(
             else if (pc_sel == 5) begin
                 next = rs1_imm;
             end
+            else if (pc_sel == 6) begin 
+                next = (br_taken_fd)? pc_imm: pc + 4;
+            end 
             // Simple next instruction
             else begin
                 next = pc + 4;

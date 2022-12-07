@@ -133,6 +133,7 @@ module cpu #(
 
     // Values inputed into control logic from branch comp
     reg brlt, breq;
+    reg brlt_fd, breq_fd;
 
     // Bits that determine which unit to read from
     reg [3:0] mem_out_sel;
@@ -150,7 +151,7 @@ module cpu #(
     // Selecting whether to forward from WB to Decode
     reg wb2d_a, wb2d_b;
     // Selecting values for branch comparison
-    reg brun;
+    reg brun, brun_fd;
     // Selecting values that input to the ALU
     reg [1:0] asel, bsel;
     // Selecting operation performed by the ALU
@@ -183,6 +184,8 @@ module cpu #(
       .inst_mw(inst_mw),
       .brlt(brlt),
       .breq(breq),
+      .brlt_fd(brlt_fd),
+      .breq_fd(breq_fd),
       .pred_taken(pred_taken),
       .mem_out_sel(mem_out_sel),
       // Outputs
@@ -191,6 +194,7 @@ module cpu #(
       .wb2d_a(wb2d_a),
       .wb2d_b(wb2d_b),
       .brun(brun),
+      .brun_fd(brun_fd),
       .reg_wen(reg_wen),
       .asel(asel),
       .bsel(bsel),
@@ -198,6 +202,7 @@ module cpu #(
       .mem_rw(mem_rw),
       .wb_sel(wb_sel),
       .br_taken(br_taken),
+      .br_taken_fd(br_taken_fd),
       .mispredict(mispredict),
       .mem_sel(mem_sel)
     );
@@ -235,6 +240,7 @@ module cpu #(
       .alu(alu_x),
       .pc_sel(pc_sel),
       .br_taken(br_taken),
+      .br_taken_fd(br_taken_fd),
       .br_pred_taken(br_pred_taken),
       .mispredict(mispredict),
       // Outputs
@@ -303,6 +309,18 @@ module cpu #(
       .rs2(rs2_fd)
     );
 
+    branch_comp compfd (
+      // Inputs
+      .brun(brun_fd),
+      .rs1(rs1_fd),
+      .rs2(rs2_fd),
+      // Outputs
+      .brlt(brlt_fd),
+      .breq(breq_fd)
+    );
+
+
+
     // Writeback
     assign we = reg_wen;
     assign wa = inst_mw[11:7];
@@ -352,7 +370,7 @@ module cpu #(
       if (rst || reset_counters) begin
         inst_count <= 0;
       end else begin
-        if (!is_j && (pred_taken == br_taken)) begin
+        if (!is_j && !mispredict) begin
             inst_count <= inst_count + 1;
         end
       end
@@ -370,11 +388,13 @@ module cpu #(
     end
 
     reg [31:0] branch_correct;
+    reg [31:0] miss_cache;
     always @(posedge clk) begin
+      miss_cache <= mispredict;
       if (rst || reset_counters) begin
         branch_correct <= 0;
       end else begin
-        if (x_is_branch && !mispredict) begin
+        if (mw_is_branch && !miss_cache) begin
           branch_correct <= branch_correct + 1;
         end
       end
@@ -488,11 +508,16 @@ module cpu #(
 
 
     reg [31:0] data_in;
+    reg [31:0] data_in_mw;
     data_in_gen datagen (
       .in(rs2_br),
       .mask(wr_mask),
       .out(data_in)
     );
+
+    always @(posedge clk) begin
+      data_in_mw <= data_in;
+    end
 
     // Reading from DMEM
     always @(*) begin
@@ -517,15 +542,12 @@ module cpu #(
 
     // Read from UART
 
-    wire [31:0] alu_uart = alu_x;
-    wire [31:0] inst_uart = inst_x;
-
     reg [31:0] uart_data_out;
-    wire uart_op = alu_uart[31:28] == 4'b1000;
+    wire uart_op = alu_x[31:28] == 4'b1000;
     always @(*) begin
-      if (uart_op && (inst_uart[6:0] == 7'h03)) begin
+      if (uart_op && (inst_x[6:0] == 7'h03)) begin
         // UART control signal
-        case (alu_uart[7:0])
+        case (alu_x[7:0])
           'h0: uart_data_out = {30'b0, uart_rx_data_out_valid, uart_tx_data_in_ready};
           'h4: uart_data_out = {24'b0, uart_rx_data_out};
           'h10: uart_data_out = cycle_count;
@@ -543,16 +565,16 @@ module cpu #(
 
     // Write to UART
     always @(*) begin
-      if (uart_op && inst_uart[6:0] == 7'h23 && alu_uart[3:0] == 'h8) begin
-          uart_tx_data_in = data_in[7:0];
+      if (alu_mw[31:28] == 4'b1000 && inst_mw[6:0] == 7'h23 && alu_mw[3:0] == 'h8) begin
+          uart_tx_data_in = data_in_mw[7:0];
       end else begin
         uart_tx_data_in = 8'b0;
       end
     end
 
     // Assign control signals, check instruction is actually a UART command
-    assign uart_rx_data_out_ready = (alu_uart == 32'h80000004) && (inst_uart[6:0] == 7'h03);
-    assign uart_tx_data_in_valid = (alu_uart == 32'h80000008) && (inst_uart[6:0] == 7'h23);
+    assign uart_rx_data_out_ready = (alu_x == 32'h80000004) && (inst_x[6:0] == 7'h03);
+    assign uart_tx_data_in_valid = (alu_mw == 32'h80000008) && (inst_mw[6:0] == 7'h23);
 
 
     // Write to IMEM

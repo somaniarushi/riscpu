@@ -7,6 +7,8 @@ module control_logic (
     input [31:0] inst_mw,
     input brlt,
     input breq,
+    input brlt_fd,
+    input breq_fd,
     input pred_taken,
     input [3:0] mem_out_sel,
     output reg [2:0] pc_sel,
@@ -14,6 +16,7 @@ module control_logic (
     output reg wb2d_a,
     output reg wb2d_b,
     output reg brun,
+    output reg brun_fd,
     output reg reg_wen,
     output reg [1:0] asel,
     output reg [1:0] bsel,
@@ -21,6 +24,7 @@ module control_logic (
     output reg mem_rw,
     output reg [1:0] wb_sel,
     output reg br_taken,
+    output reg br_taken_fd,
     output reg mispredict,
     output reg [1:0] mem_sel
 );
@@ -36,6 +40,7 @@ module control_logic (
 
     wire [2:0] x_func3 = inst_x[14:12];
     wire [6:0] x_func7 = inst_x[31:25];
+    wire [2:0] fd_func3 = inst_fd[14:12];
 
     wire x_is_jal = x_opc == 7'h6F;
     wire x_is_jalr = x_opc == 7'h67;
@@ -64,17 +69,25 @@ module control_logic (
     wire [4:0] rs2_instx = inst_x[24:20];
 
     wire fd_x_rs1_conflict = x_rd_exists && fd_rs1_exists && (rs1_instfd == rd_instx);
-    reg fd_x_conflict_cache;
-    always @(posedge clk) fd_x_conflict_cache <= fd_x_rs1_conflict;
+    wire fd_x_rs2_conflict = x_rd_exists && fd_rs2_exists && (rs2_instfd == rd_instx);
+    wire fd_x_br_conflict = fd_x_rs1_conflict || fd_x_rs2_conflict; // if either rs1 or rs2 requires forwarding, the branch inst in fd must wait until x to resolve
+    // wire fd_x_br_conflict = 1;
 
-    assign mispredict = x_is_branch && (br_taken != pred_taken);
+    reg fd_x_conflict_cache; // remembers if the last fd and x stage had a conflict. If true, must go through branch prediction (fd), to be resolved later. 
+    reg fd_x_br_cache; // remembers if the last fd and x stage had a branch conflict. The branch instruction that didn't resolve is now in X.
+    always @(posedge clk) begin
+        fd_x_conflict_cache <= fd_x_rs1_conflict;
+        fd_x_br_cache <= fd_x_br_conflict;
+    end
+
+    assign mispredict = x_is_branch && fd_x_br_cache && (br_taken != pred_taken);
 
     always @(*) begin
-        if (mispredict) pc_sel = 1;
-        else if (fd_is_branch) pc_sel = 3;
+        if (mispredict) pc_sel = 1; 
+        else if (fd_is_branch) pc_sel = (fd_x_br_conflict) ? 3 : 6; // if we cannot resolve branch in fd, go to branch prediction(fd). Else jump. 
         else if (fd_is_jal) pc_sel = 4;
         else if (fd_is_jalr && !fd_x_rs1_conflict) pc_sel = 5;
-        else if (x_is_branch) pc_sel = 1;
+        else if (x_is_branch && fd_x_br_cache) pc_sel = 1; // if x is branch and we did not previously resolve in fd stage, go to prediction resolution. 
         else if (x_is_jalr && fd_x_conflict_cache) pc_sel = 2;
         else pc_sel = 0;
     end
@@ -101,6 +114,8 @@ module control_logic (
     wire x_is_unsigned = x_func3 == `FNC_BLTU || x_func3 == `FNC_BGEU; // BLTU or BGEU
     assign brun = x_is_branch && x_is_unsigned;
 
+    wire fd_is_unsigned = fd_func3 == `FNC_BLTU || fd_func3 == `FNC_BGEU;
+    assign brun_fd = fd_is_branch && fd_is_unsigned;
     // Set br_taken
 
     always @(*) begin
@@ -117,6 +132,21 @@ module control_logic (
             br_taken = 0;
         end
     end
+
+    // Set br_taken_fd 
+
+    always @(*) begin 
+        if (fd_is_branch) begin 
+            case (fd_func3)
+                `FNC_BEQ: br_taken_fd = breq_fd;
+                `FNC_BNE: br_taken_fd = !breq_fd;
+                `FNC_BLT: br_taken_fd = brlt_fd;
+                `FNC_BGE: br_taken_fd = !brlt_fd;
+                `FNC_BLTU: br_taken_fd = brlt_fd;
+                `FNC_BGEU: br_taken_fd = !brlt_fd;
+            endcase
+        end
+    end 
 
     // Setting ASEL
     /*
