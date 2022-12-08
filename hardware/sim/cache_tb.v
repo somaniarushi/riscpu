@@ -83,8 +83,13 @@ module cache_tb();
         assert(hit1 == 1) else $display("ERROR: incorrect hit check for ra1 %b", hit1);
         we = 0;
 
-        // Test cache miss
+        // Test cache miss -> offset no tag
         ra0 = 32'h00000012;
+        repeat (1) @(posedge clk);
+        assert (hit0 == 0) else $display("ERROR: incorrect hit check for ra0 %b", hit0);
+
+        // Test cache miss -> offset wrong tag
+        ra0 = 32'h10000011;
         repeat (1) @(posedge clk);
         assert (hit0 == 0) else $display("ERROR: incorrect hit check for ra0 %b", hit0);
 
