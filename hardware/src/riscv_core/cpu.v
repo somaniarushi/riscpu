@@ -9,8 +9,6 @@ module cpu #(
     input serial_in,
     output serial_out
 );
-    // FIXME: Add ZERO things out on rst
-
 
     // BIOS Memory
     // Synchronous read: read takes one cycle
@@ -207,6 +205,10 @@ module cpu #(
       .mem_sel(mem_sel)
     );
 
+    /* ===================================================================== */
+    /* =========================== FETCH DECODE ============================ */
+    /* ===================================================================== */
+
     /* Fetch and Decode Section
       1. Calculate next PC based on PCSel (control logic)
          given PC + 4, ALU, and PC + imm as options
@@ -400,6 +402,10 @@ module cpu #(
       end
     end
 
+    /* ===================================================================== */
+    /* ============================== EXECUTE ============================== */
+    /* ===================================================================== */
+
 
     /*
       Execute Section
@@ -465,19 +471,28 @@ module cpu #(
       .out(alu_x)
     );
 
+    wire [31:0] add_x = rs1_in + rs2_in;
+    reg [31:0] add_mw;
+
     always @(posedge clk) begin
       if (rst) begin
         pc_mw <= 0;
         inst_mw <= 0;
         alu_mw <= 0;
         imm_mw <= 0;
+        add_mw <= 0;
       end else begin
         pc_mw <= pc_x;
         inst_mw <= inst_x;
         alu_mw <= alu_x;
+        add_mw <= add_x;
         imm_mw <= imm_x;
       end
     end
+
+    /* ===================================================================== */
+    /* ========================= MEMORY / WRITEBACK ======================== */
+    /* ===================================================================== */
 
 
     /*
@@ -502,7 +517,7 @@ module cpu #(
     reg [3:0] wr_mask;
     gen_wr_mask masker (
       .inst(inst_x),
-      .addr(alu_x),
+      .addr(add_x),
       .mask(wr_mask)
     );
 
@@ -521,8 +536,8 @@ module cpu #(
 
     // Reading from DMEM
     always @(*) begin
-      if (alu_x[31:30] == 2'b00 && alu_x[28] == 1) begin
-        dmem_addr = alu_x[15:2];
+      if (add_x[31:30] == 2'b00 && add_x[28] == 1) begin
+        dmem_addr = add_x[15:2];
         dmem_en = 1;
         dmem_din = data_in;
         dmem_we = wr_mask;
@@ -536,18 +551,18 @@ module cpu #(
     assign mem_dmem_dout = dmem_dout;
 
     // Reading from BIOS
-    assign bios_addrb = alu_x[13:2];
+    assign bios_addrb = add_x[13:2];
     assign bios_enb = 1;
     assign mem_bios_dout = bios_doutb;
 
     // Read from UART
 
     reg [31:0] uart_data_out;
-    wire uart_op = alu_x[31:28] == 4'b1000;
+    wire uart_op = add_x[31:28] == 4'b1000;
     always @(*) begin
       if (uart_op && (inst_x[6:0] == 7'h03)) begin
         // UART control signal
-        case (alu_x[7:0])
+        case (add_x[7:0])
           'h0: uart_data_out = {30'b0, uart_rx_data_out_valid, uart_tx_data_in_ready};
           'h4: uart_data_out = {24'b0, uart_rx_data_out};
           'h10: uart_data_out = cycle_count;
@@ -565,7 +580,7 @@ module cpu #(
 
     // Write to UART
     always @(*) begin
-      if (alu_mw[31:28] == 4'b1000 && inst_mw[6:0] == 7'h23 && alu_mw[3:0] == 'h8) begin
+      if (add_mw[31:28] == 4'b1000 && inst_mw[6:0] == 7'h23 && add_mw[3:0] == 'h8) begin
           uart_tx_data_in = data_in_mw[7:0];
       end else begin
         uart_tx_data_in = 8'b0;
@@ -573,15 +588,15 @@ module cpu #(
     end
 
     // Assign control signals, check instruction is actually a UART command
-    assign uart_rx_data_out_ready = (alu_x == 32'h80000004) && (inst_x[6:0] == 7'h03);
-    assign uart_tx_data_in_valid = (alu_mw == 32'h80000008) && (inst_mw[6:0] == 7'h23);
+    assign uart_rx_data_out_ready = (add_x == 32'h80000004) && (inst_x[6:0] == 7'h03);
+    assign uart_tx_data_in_valid = (add_mw == 32'h80000008) && (inst_mw[6:0] == 7'h23);
 
 
     // Write to IMEM
     assign imem_ena = 1;
     always @(*) begin
-      if (alu_x[31:29] == 3'b001 && pc_x[30] == 1) begin
-        imem_addra = alu_x[15:2];
+      if (add_x[31:29] == 3'b001 && pc_x[30] == 1) begin
+        imem_addra = add_x[15:2];
         imem_dina = data_in;
         imem_wea = wr_mask;
       end else begin
@@ -596,7 +611,7 @@ module cpu #(
       .in(mem_bios_dout),
       .out(bios_lex),
       .inst(inst_mw),
-      .addr(alu_mw)
+      .addr(add_mw)
     );
 
     reg [31:0] dmem_lex;
@@ -604,7 +619,7 @@ module cpu #(
       .in(mem_dmem_dout),
       .out(dmem_lex),
       .inst(inst_mw),
-      .addr(alu_mw)
+      .addr(add_mw)
     );
 
     reg [31:0] uart_out;
@@ -613,7 +628,7 @@ module cpu #(
     reg [31:0] uart_lex;
     assign uart_lex = uart_out;
 
-    assign mem_out_sel = alu_mw[31:28];
+    assign mem_out_sel = add_mw[31:28];
     wb_selector wber (
       // Inputs
       .mem_bios_dout(bios_lex),

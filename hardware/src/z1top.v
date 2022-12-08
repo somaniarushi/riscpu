@@ -1,9 +1,9 @@
 module z1top #(
     parameter BAUD_RATE = 115_200,
     // Warning: CPU_CLOCK_FREQ must match the PLL parameters!
-    parameter CPU_CLOCK_FREQ = 67_500_000,
+    parameter CPU_CLOCK_FREQ = 75_000_000,
     // PLL Parameters: sets the CPU clock = 125Mhz * 34 / 5 / 17 = 50 MHz
-    parameter CPU_CLK_CLKFBOUT_MULT = 27,
+    parameter CPU_CLK_CLKFBOUT_MULT = 30,
     parameter CPU_CLK_DIVCLK_DIVIDE = 5,
     parameter CPU_CLK_CLKOUT_DIVIDE  = 10,
     /* verilator lint_off REALCVT */
