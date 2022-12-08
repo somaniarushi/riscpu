@@ -591,6 +591,9 @@ module cpu #(
     assign uart_rx_data_out_ready = (add_x == 32'h80000004) && (inst_x[6:0] == 7'h03);
     assign uart_tx_data_in_valid = (add_mw == 32'h80000008) && (inst_mw[6:0] == 7'h23);
 
+    reg [31:0] uart_out;
+    always @(posedge clk) uart_out <= uart_data_out;
+
 
     // Write to IMEM
     assign imem_ena = 1;
@@ -606,34 +609,27 @@ module cpu #(
       end
     end
 
-    reg [31:0] bios_lex;
-    load_extender blexer (
-      .in(mem_bios_dout),
-      .out(bios_lex),
-      .inst(inst_mw),
-      .addr(add_mw)
-    );
-
-    reg [31:0] dmem_lex;
-    load_extender lexer (
-      .in(mem_dmem_dout),
-      .out(dmem_lex),
-      .inst(inst_mw),
-      .addr(add_mw)
-    );
-
-    reg [31:0] uart_out;
-    always @(posedge clk) uart_out <= uart_data_out;
-
-    reg [31:0] uart_lex;
-    assign uart_lex = uart_out;
-
     assign mem_out_sel = add_mw[31:28];
+    reg [31:0] out_mem;
+    always @(*) begin
+      case (mem_sel)
+        2'b10: out_mem = mem_bios_dout;
+        2'b01: out_mem = uart_out;
+        default: out_mem = mem_dmem_dout;
+      endcase
+    end
+
+    reg [31:0] out_lex;
+    load_extender lexer (
+      .in(out_mem),
+      .out(out_lex),
+      .inst(inst_mw),
+      .addr(add_mw)
+    );
+
     wb_selector wber (
       // Inputs
-      .mem_bios_dout(bios_lex),
-      .dmem_lex(dmem_lex),
-      .uart_out(uart_lex),
+      .out_lex(out_lex),
       .pc(pc_mw),
       .alu(alu_mw),
       .wb_sel(wb_sel),
