@@ -127,6 +127,7 @@ module control_logic (
                 `FNC_BGE: br_taken = !brlt;
                 `FNC_BLTU: br_taken = brlt;
                 `FNC_BGEU: br_taken = !brlt;
+                default: br_taken = 0;
             endcase
         end else begin
             br_taken = 0;
@@ -144,7 +145,10 @@ module control_logic (
                 `FNC_BGE: br_taken_fd = !brlt_fd;
                 `FNC_BLTU: br_taken_fd = brlt_fd;
                 `FNC_BGEU: br_taken_fd = !brlt_fd;
+                default: br_taken_fd = 0;
             endcase
+        end else begin
+            br_taken_fd = 0;
         end
     end 
 
