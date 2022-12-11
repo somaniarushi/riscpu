@@ -55,7 +55,7 @@ module mmio_counter_tb();
     .serial_out()
   );
 
-  wire [31:0] timeout_cycle = 100;  // TODO: change this to a larger number if longer program tests are added.
+  wire [31:0] timeout_cycle = 100;
 
   // Reset IMem, DMem, and RegFile before running new test
   task reset;
@@ -166,7 +166,7 @@ module mmio_counter_tb();
     input [11:0]  max_iter;
     reg [4:0] RVAR;
     /*
-    
+
     Implements the following code:
     1. Initialize RVAR to max_iter (ADDI RVAR, x0, max_iter)
     2. Decrement RVAR by 1         (SUB  RVAR, RVAR, -1)

@@ -38,7 +38,6 @@ module imm_generator_tb();
         // Test B-Types
         inst = 32'h00428463; // beq x5 x4 8
         repeat (1) @(negedge clk);
-            // FIXME: Is this incorrect?
         assert (imm == 'd8) else $display("immediate value incorrect, %d", imm);
 
         // Test U-Types

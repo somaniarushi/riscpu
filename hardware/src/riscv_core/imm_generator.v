@@ -9,7 +9,6 @@ module immediate_generator (
     assign func3 = inst[14:12];
 
     always @(*) begin
-        // FIXME: SIGN EXTEND ALL INSTRUCTION TYPES
         // Instruction = I-Type
         if (opc == 7'h03 || opc == 7'h13 || opc == 7'h67) begin
             // SHAMT instructions
@@ -23,10 +22,10 @@ module immediate_generator (
             end
         end
         // Instruction = CSR
-        else if (opc == 7'h73) begin 
+        else if (opc == 7'h73) begin
             imm_reg[4:0] = inst[19:15];
             imm_reg[31:5] = 'd0; // No sign extension needed.
-        end 
+        end
         // Instruction = S-Type
         else if (opc == 7'h23) begin
             imm_reg[4:0] = inst[11:7];

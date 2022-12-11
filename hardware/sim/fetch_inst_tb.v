@@ -61,7 +61,6 @@ module fetch_inst_tb();
         imem_dina = 32'h25;
         repeat (1) @(negedge clk);
 
-        // TODO: Check waveform in lab
         pc = 32'h100;
         imem_ena = 1;
         bios_ena = 1;

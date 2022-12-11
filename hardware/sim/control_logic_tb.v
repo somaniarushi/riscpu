@@ -62,8 +62,6 @@ module control_logic_tb();
         repeat (1) @(negedge clk);
         assert(pc_sel == 1) else $display("Should prompt next PCSEL = 0, instead %d", pc_sel);
 
-          // TODO: Test PC Sel = 1 for branching
-
         /**
           Test isJorB
         */

@@ -6,7 +6,6 @@ module wb_selector(
     input [1:0] mem_sel,
     output reg [31:0] wb_val
 );
-    // TODO: If bios_dmem is equal to 1000, forward the value of the UART block.
     always @(*) begin
         if (wb_sel == 2) begin
             wb_val = pc + 4;

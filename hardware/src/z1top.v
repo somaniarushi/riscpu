@@ -51,7 +51,7 @@ module z1top #(
 
     // Use IOBs to drive the PWM output
     (* IOB = "true" *) reg pwm_iob;
-    wire pwm_out; // TODO: connect this wire to your DAC
+    wire pwm_out;
     assign pwm_out = 1'b0;
     assign AUD_PWM = pwm_iob;
     assign AUD_SD = 1'b1;

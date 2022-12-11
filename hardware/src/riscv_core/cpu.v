@@ -263,8 +263,6 @@ module cpu #(
       .pc_guess(pc_fd),
       .is_br_guess(bp_enable && fd_is_branch),
 
-      // TODO: Make sure this isn't doing worse
-      // by making more cache misses
       .pc_check(pc_mw),
       .is_br_check(bp_enable && mw_is_branch),
       .br_taken_check(br_taken_cache),

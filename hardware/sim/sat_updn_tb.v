@@ -26,7 +26,6 @@ module sat_updn_tb();
         repeat (1) @(negedge clk);
         assert (out == 2'b11) else $display("State transition incorrect");
 
-        //TODO: Write out more tests.
         $finish();
     end
 endmodule
